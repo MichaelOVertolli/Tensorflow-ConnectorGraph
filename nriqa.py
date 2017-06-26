@@ -113,8 +113,8 @@ def scale_loop(scale, ref, dist, num, den, eps, sigma_nsq, zero):
     return [scale+1, \
             gaussian_filter_gray(ref, sigma, 'NCHW')[:, :, ::2, ::2], \
             gaussian_filter_gray(dist, sigma, 'NCHW')[:, :, ::2, ::2], \
-            tf.add(num, tf.reduce_sum(log10(1 + g * g * sigma1_sq / (sv_sq + sigma_nsq)))), \
-            tf.add(den, tf.reduce_sum(log10(1 + sigma1_sq / sigma_nsq))), \
+            tf.add(num, tf.reduce_sum(log10(tf.clip_by_value(1 + g * g * sigma1_sq / (sv_sq + sigma_nsq), 1e-10, 1e10)))), \
+            tf.add(den, tf.reduce_sum(log10(tf.clip_by_value(1 + sigma1_sq / sigma_nsq, 1e-10, 1e10)))), \
             eps, sigma_nsq, zero]
 
 
@@ -136,10 +136,19 @@ def vifp(ref, dist):
                            shape_invariants=[scale.get_shape(), shape, shape, zero.get_shape(),
                                              zero.get_shape(), eps.get_shape(),
                                              sigma_nsq.get_shape(), zero.get_shape()])
+    #num = tf.Print(output[3], [output[3], output[4]], 'Num and Den values: ', -1)
     return output[3]/output[4]
 
 
+def prep_and_call_vifp(ref, dist):
+    out = vifp(tograyscale((ref+1)/2)*255, tograyscale((dist+1)/2)*255)
+    out = tf.cond(out < tf.constant(0.0), lambda: tf.constant(0.0), lambda: out)
+    out = tf.cond(out > tf.constant(1.0), lambda: tf.constant(1.0), lambda: out)
+    return 1. - out
+
+
 def vifp_mscale(ref, dist):
+    #From: https://github.com/aizvorski/video-quality
     import numpy
     import scipy.signal
     import scipy.ndimage
@@ -192,3 +201,95 @@ def vifp_mscale(ref, dist):
     vifp = num/den
 
     return vifp
+
+
+def toyiq(img):
+    r, g, b = tf.unstack(img, num=3, axis=1)
+    y = 0.30*r + 0.59*g + 0.11*b
+    i = 0.60*r - 0.28*g - 0.32*b
+    q = 0.21*r - 0.52*g + 0.31*b
+    return y, i, q
+
+
+def fromyiq(img):
+    y, i, q = tf.unstack(img, num=3, axis=1)
+    r = tf.clip_by_value(y + 0.948262*i + 0.624013*q, 0, 1.0)
+    g = tf.clip_by_value(y - 0.276066*i - 0.639810*q, 0, 1.0)
+    b = tf.clip_by_value(y - 1.105450*i + 1.729860*q, 0, 1.0)
+    return r, g, b
+
+
+def np_fromyiq(img):
+    y = img[:, :, :, 0]
+    i = img[:, :, :, 1]
+    q = img[:, :, :, 2]
+    img2 = img.copy()
+    img2[:, :, :, 0] = np.clip(y + 0.948262*i + 0.624013*q, 0, 1.0)
+    img2[:, :, :, 1] = np.clip(y - 0.276066*i - 0.639810*q, 0, 1.0)
+    img2[:, :, :, 2] = np.clip(y - 1.105450*i + 1.729860*q, 0, 1.0)
+    return img2
+
+def sobel(yiq_img):
+    #From: https://stackoverflow.com/questions/35565312/is-there-a-convolution-function-in-tensorflow-to-apply-a-sobel-filter
+    sobel_x = tf.constant([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], tf.float32)
+    sobel_x_filter = tf.reshape(sobel_x, [3, 3, 1, 1])
+    sobel_y_filter = tf.transpose(sobel_x_filter, [1, 0, 2, 3])
+
+    G_x = tf.nn.conv2d(tf.expand_dims(yiq_img, 1), sobel_x_filter,
+                       strides=[1, 1, 1, 1], padding='SAME', data_format='NCHW')
+    G_y = tf.nn.conv2d(tf.expand_dims(yiq_img, 1), sobel_y_filter,
+                       strides=[1, 1, 1, 1], padding='SAME', data_format='NCHW')
+
+    return G_x, G_y
+
+
+def dice_metric(r, d, c):
+    return (2*r*d + c)/(r**2 + d**2 + c)
+
+
+def gms(ry, dy, c):
+    rG_x, rG_y = sobel(ry)
+    dG_x, dG_y = sobel(dy)
+
+    rG = tf.sqrt(rG_x**2 + rG_y**2)
+    dG = tf.sqrt(dG_x**2 + dG_y**2)
+
+    return dice_metric(rG, dG, c)
+
+
+def chrominance(ri, rq, di, dq, c):
+    Ik = dice_metric(ri, di, c)
+    Qk = dice_metric(rq, dq, c)
+    return Ik*Qk
+
+
+def qs(ref, dist):
+    c = tf.constant(0.0026)
+    ry, ri, rq = toyiq(ref)
+    dy, di, dq = toyiq(dist)
+    #sy, si, sq = tf.shape(ry), tf.shape(ri), tf.shape(rq)
+    #ry = tf.Print(ry, [sy, si, sq])
+
+    gms_ = gms(ry, dy, c)
+    chrome = chrominance(ri, rq, di, dq, c)
+
+    #out = tf.reduce_mean(gms_ + chrome)
+
+    return tf.reduce_mean(gms_), tf.reduce_mean(chrome)#tf.Print(out, [gms_, chrome, out])
+
+
+def qs_yiq(ref, dist):
+    c = tf.constant(0.0026)
+    ry, ri, rq = tf.unstack(ref, num=3, axis=1)
+    dy, di, dq = tf.unstack(dist, num=3, axis=1)
+
+    gms_ = gms(ry, dy, c)
+    chrome = chrominance(ri, rq, di, dq, c)
+
+    return tf.reduce_mean(gms_), tf.reduce_mean(chrome)#tf.Print(out, [gms_, chrome, out])
+
+
+def prep_and_call_qs(ref, dist):
+    gms_, chrome = qs(((ref+1)/2)*255., ((dist+1)/2)*255.)
+    #out = tf.Print(out, [out])
+    return 1.-gms_, 1.-chrome#(2. - out)/2.
