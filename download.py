@@ -52,7 +52,7 @@ def download_celeb_a(base_path):
         print('[!] Found Celeb-A - skip')
         return
 
-    filename, drive_id  = "img_align_celeba.zip", "0B7EVK8r0v71pZjFTYXZWM3FlRnM"
+    filename, drive_id  = "imgs.zip", "0B7EVK8r0v71pZjFTYXZWM3FlRnM"
     save_path = os.path.join(base_path, filename)
 
     if os.path.exists(save_path):
@@ -66,7 +66,7 @@ def download_celeb_a(base_path):
         zf.extractall(base_path)
     if not os.path.exists(data_path):
         os.mkdir(data_path)
-    os.rename(os.path.join(base_path, "img_align_celeba"), images_path)
+    os.rename(os.path.join(base_path, "imgs"), images_path)
     os.remove(save_path)
 
 def prepare_data_dir(path = './data'):
@@ -111,6 +111,6 @@ def add_splits(base_path):
 
 if __name__ == '__main__':
     base_path = './data'
-    prepare_data_dir()
-    download_celeb_a(base_path)
+    #prepare_data_dir()
+    #download_celeb_a(base_path)
     add_splits(base_path)

@@ -8,6 +8,7 @@ from glob import glob
 from tqdm import trange
 from itertools import chain
 from collections import deque
+from nriqa import prep_and_call_qs, fromyiq, np_fromyiq
 
 from models import *
 from utils import save_image
@@ -99,7 +100,7 @@ class Trainer(object):
                                 saver=self.saver,
                                 summary_op=None,
                                 summary_writer=self.summary_writer,
-                                save_model_secs=300,
+                                save_model_secs=1200,
                                 global_step=self.step,
                                 ready_for_local_init_op=None)
 
@@ -120,6 +121,8 @@ class Trainer(object):
         z_fixed = np.random.uniform(-1, 1, size=(self.batch_size, self.z_num))
 
         x_fixed = self.get_image_from_loader()
+        #for yiq
+        #save_image(np_fromyiq(x_fixed/255.)*255., '{}/x_fixed.png'.format(self.model_dir))
         save_image(x_fixed, '{}/x_fixed.png'.format(self.model_dir))
 
         prev_measure = 1
@@ -182,6 +185,9 @@ class Trainer(object):
 
         self.G = denorm_img(G, self.data_format)
         self.AE_G, self.AE_x = denorm_img(AE_G, self.data_format), denorm_img(AE_x, self.data_format)
+        #for yiq
+        #self.G_rgb = tf.transpose(tf.stack(fromyiq(tf.transpose(self.G, [0, 3, 1, 2])/255.), axis=1)*255., [0, 2, 3, 1])
+        #self.AE_x_rgb = tf.transpose(tf.stack(fromyiq(tf.transpose(self.AE_x, [0, 3, 1, 2])/255.), axis=1)*255., [0, 2, 3, 1])
 
         if self.optimizer == 'adam':
             optimizer = tf.train.AdamOptimizer
@@ -190,11 +196,19 @@ class Trainer(object):
 
         g_optimizer, d_optimizer = optimizer(self.g_lr), optimizer(self.d_lr)
 
-        self.d_loss_real = tf.reduce_mean(tf.abs(AE_x - x))
-        self.d_loss_fake = tf.reduce_mean(tf.abs(AE_G - G))
+        l2w, gmsw, chromew = 2., 1., 1.
+        totw = l2w + gmsw + chromew
+        self.d_loss_real_l2 = tf.reduce_mean(tf.abs(AE_x - x))
+        self.d_loss_real_gms, self.d_loss_real_chrome = prep_and_call_qs(x, AE_x)
+        self.d_loss_real = (l2w*self.d_loss_real_l2 + gmsw*self.d_loss_real_gms + chromew*self.d_loss_real_chrome)/totw
+        self.d_loss_fake_l2 = tf.reduce_mean(tf.abs(AE_G - G))
+        self.d_loss_fake_gms, self.d_loss_fake_chrome = prep_and_call_qs(G, AE_G)
+        self.d_loss_fake = (l2w*self.d_loss_fake_l2 + gmsw*self.d_loss_fake_gms + chromew*self.d_loss_fake_chrome)/totw
 
         self.d_loss = self.d_loss_real - self.k_t * self.d_loss_fake
-        self.g_loss = tf.reduce_mean(tf.abs(AE_G - G))
+        self.g_loss_l2 = tf.reduce_mean(tf.abs(AE_G - G))
+        self.g_loss_gms, self.g_loss_chrome = prep_and_call_qs(G, AE_G)
+        self.g_loss = (l2w*self.g_loss_l2 + gmsw*self.g_loss_gms + chromew*self.g_loss_chrome)/totw
 
         d_optim = d_optimizer.minimize(self.d_loss, var_list=self.D_var)
         g_optim = g_optimizer.minimize(self.g_loss, global_step=self.step, var_list=self.G_var)
@@ -213,8 +227,17 @@ class Trainer(object):
 
             tf.summary.scalar("loss/d_loss", self.d_loss),
             tf.summary.scalar("loss/d_loss_real", self.d_loss_real),
+            tf.summary.scalar("loss/d_loss_real_l2", self.d_loss_real_l2),
+            tf.summary.scalar("loss/d_loss_real_gms", self.d_loss_real_gms),
+            tf.summary.scalar("loss/d_loss_real_chrome", self.d_loss_real_chrome),
             tf.summary.scalar("loss/d_loss_fake", self.d_loss_fake),
+            tf.summary.scalar("loss/d_loss_fake_l2", self.d_loss_fake_l2),
+            tf.summary.scalar("loss/d_loss_fake_gms", self.d_loss_fake_gms),
+            tf.summary.scalar("loss/d_loss_fake_chrome", self.d_loss_fake_chrome),
             tf.summary.scalar("loss/g_loss", self.g_loss),
+            tf.summary.scalar("loss/g_loss_l2", self.g_loss_l2),
+            tf.summary.scalar("loss/g_loss_gms", self.g_loss_gms),
+            tf.summary.scalar("loss/g_loss_chrome", self.g_loss_chrome),
             tf.summary.scalar("misc/measure", self.measure),
             tf.summary.scalar("misc/k_t", self.k_t),
             tf.summary.scalar("misc/d_lr", self.d_lr),
@@ -241,10 +264,11 @@ class Trainer(object):
         self.sess.run(tf.variables_initializer(test_variables))
 
     def generate(self, inputs, root_path=None, path=None, idx=None, save=True):
+        #changed for yiq
         x = self.sess.run(self.G, {self.z: inputs})
         if path is None and save:
             path = os.path.join(root_path, '{}_G.png'.format(idx))
-            save_image(x, path)
+            #save_image(x, path)
             print("[*] Samples saved: {}".format(path))
         return x
 
@@ -260,8 +284,9 @@ class Trainer(object):
                 img = img.transpose([0, 3, 1, 2])
 
             x_path = os.path.join(path, '{}_D_{}.png'.format(idx, key))
+            #changed for yiq
             x = self.sess.run(self.AE_x, {self.x: img})
-            save_image(x, x_path)
+            #save_image(x, x_path)
             print("[*] Samples saved: {}".format(x_path))
 
     def encode(self, inputs):
@@ -292,8 +317,8 @@ class Trainer(object):
             generated.append(z_decode)
 
         generated = np.stack(generated).transpose([1, 0, 2, 3, 4])
-        for idx, img in enumerate(generated):
-            save_image(img, os.path.join(root_path, 'test{}_interp_G_{}.png'.format(step, idx)), nrow=10)
+        #for idx, img in enumerate(generated):
+        #    save_image(img, os.path.join(root_path, 'test{}_interp_G_{}.png'.format(step, idx)), nrow=10)
 
         all_img_num = np.prod(generated.shape[:2])
         batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
@@ -315,7 +340,7 @@ class Trainer(object):
             save_image(img, os.path.join(root_path, 'test{}_interp_D_{}.png'.format(step, idx)), nrow=10 + 2)
 
     def test(self):
-        root_path = "./"#self.model_dir
+        root_path = self.model_dir
 
         all_G_z = None
         for step in range(3):
@@ -340,7 +365,7 @@ class Trainer(object):
                 all_G_z = G_z
             else:
                 all_G_z = np.concatenate([all_G_z, G_z])
-            save_image(all_G_z, '{}/G_z{}.png'.format(root_path, step))
+            #save_image(all_G_z, '{}/G_z{}.png'.format(root_path, step))
 
         save_image(all_G_z, '{}/all_G_z.png'.format(root_path), nrow=16)
 

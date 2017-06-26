@@ -28,15 +28,16 @@ def main(config):
     data_loader = get_loader(
             data_path, config.batch_size, config.input_scale_size,
             config.data_format, config.split)
-    trainer = Trainer(config, data_loader)
+    with tf.device('/gpu:'+config.which_gpu):
+        trainer = Trainer(config, data_loader)
 
-    if config.is_train:
-        save_config(config)
-        trainer.train()
-    else:
-        if not config.load_path:
-            raise Exception("[!] You should specify `load_path` to load a pretrained model")
-        trainer.test()
+        if config.is_train:
+            save_config(config)
+            trainer.train()
+        else:
+            if not config.load_path:
+                raise Exception("[!] You should specify `load_path` to load a pretrained model")
+            trainer.test()
 
 if __name__ == "__main__":
     config, unparsed = get_config()

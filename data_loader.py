@@ -2,6 +2,7 @@ import os
 from PIL import Image
 from glob import glob
 import tensorflow as tf
+from nriqa import toyiq
 
 def get_loader(root, batch_size, scale_size, data_format, split=None, is_grayscale=False, seed=None):
     dataset_name = os.path.basename(root)
@@ -15,7 +16,6 @@ def get_loader(root, batch_size, scale_size, data_format, split=None, is_graysca
             tf_decode = tf.image.decode_jpeg
         elif ext == "png":
             tf_decode = tf.image.decode_png
-        
         if len(paths) != 0:
             break
 
@@ -53,4 +53,6 @@ def get_loader(root, batch_size, scale_size, data_format, split=None, is_graysca
     else:
         raise Exception("[!] Unkown data_format: {}".format(data_format))
 
+    #for yiq image
+    #return tf.stack(toyiq(tf.to_float(queue)/255.), axis=1)*255.
     return tf.to_float(queue)
