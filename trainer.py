@@ -69,6 +69,11 @@ class Trainer(object):
         self.gamma = config.gamma
         self.lambda_k = config.lambda_k
 
+        self.l1w = config.l1weight
+        self.gmsw = config.gmsweight
+        self.chromew = config.chromeweight
+        self.totw = self.l1w + self.gmsw + self.chromew
+
         self.z_num = config.z_num
         self.conv_hidden_num = config.conv_hidden_num
         self.input_scale_size = config.input_scale_size
@@ -156,9 +161,10 @@ class Trainer(object):
                 print("[{}/{}] Loss_D: {:.6f} Loss_G: {:.6f} measure: {:.4f}, k_t: {:.4f}". \
                       format(step, self.max_step, d_loss, g_loss, measure, k_t))
 
-            if step % (self.log_step * 10) == 0:
+            if step % (self.log_step * 100) == 0:
                 x_fake = self.generate(z_fixed, self.model_dir, idx=step)
                 self.autoencode(x_fixed, self.model_dir, idx=step, x_fake=x_fake)
+                self.interpolate_live_G(z_fixed, self.model_dir, idx=step)
 
             if step % self.lr_update_step == self.lr_update_step - 1:
                 self.sess.run([self.g_lr_update, self.d_lr_update])
@@ -196,19 +202,17 @@ class Trainer(object):
 
         g_optimizer, d_optimizer = optimizer(self.g_lr), optimizer(self.d_lr)
 
-        l2w, gmsw, chromew = 2., 1., 1.
-        totw = l2w + gmsw + chromew
-        self.d_loss_real_l2 = tf.reduce_mean(tf.abs(AE_x - x))
+        self.d_loss_real_l1 = tf.reduce_mean(tf.abs(AE_x - x))
         self.d_loss_real_gms, self.d_loss_real_chrome = prep_and_call_qs(x, AE_x)
-        self.d_loss_real = (l2w*self.d_loss_real_l2 + gmsw*self.d_loss_real_gms + chromew*self.d_loss_real_chrome)/totw
-        self.d_loss_fake_l2 = tf.reduce_mean(tf.abs(AE_G - G))
+        self.d_loss_real = (self.l1w*self.d_loss_real_l1 + self.gmsw*self.d_loss_real_gms + self.chromew*self.d_loss_real_chrome)/self.totw
+        self.d_loss_fake_l1 = tf.reduce_mean(tf.abs(AE_G - G))
         self.d_loss_fake_gms, self.d_loss_fake_chrome = prep_and_call_qs(G, AE_G)
-        self.d_loss_fake = (l2w*self.d_loss_fake_l2 + gmsw*self.d_loss_fake_gms + chromew*self.d_loss_fake_chrome)/totw
+        self.d_loss_fake = (self.l1w*self.d_loss_fake_l1 + self.gmsw*self.d_loss_fake_gms + self.chromew*self.d_loss_fake_chrome)/self.totw
 
         self.d_loss = self.d_loss_real - self.k_t * self.d_loss_fake
-        self.g_loss_l2 = tf.reduce_mean(tf.abs(AE_G - G))
+        self.g_loss_l1 = tf.reduce_mean(tf.abs(AE_G - G))
         self.g_loss_gms, self.g_loss_chrome = prep_and_call_qs(G, AE_G)
-        self.g_loss = (l2w*self.g_loss_l2 + gmsw*self.g_loss_gms + chromew*self.g_loss_chrome)/totw
+        self.g_loss = (self.l1w*self.g_loss_l1 + self.gmsw*self.g_loss_gms + self.chromew*self.g_loss_chrome)/self.totw
 
         d_optim = d_optimizer.minimize(self.d_loss, var_list=self.D_var)
         g_optim = g_optimizer.minimize(self.g_loss, global_step=self.step, var_list=self.G_var)
@@ -225,19 +229,19 @@ class Trainer(object):
             tf.summary.image("AE_G", self.AE_G),
             tf.summary.image("AE_x", self.AE_x),
 
-            tf.summary.scalar("loss/d_loss", self.d_loss),
-            tf.summary.scalar("loss/d_loss_real", self.d_loss_real),
-            tf.summary.scalar("loss/d_loss_real_l2", self.d_loss_real_l2),
+            tf.summary.scalar("loss/d_loss_real_l1", self.d_loss_real_l1),
             tf.summary.scalar("loss/d_loss_real_gms", self.d_loss_real_gms),
             tf.summary.scalar("loss/d_loss_real_chrome", self.d_loss_real_chrome),
-            tf.summary.scalar("loss/d_loss_fake", self.d_loss_fake),
-            tf.summary.scalar("loss/d_loss_fake_l2", self.d_loss_fake_l2),
+            tf.summary.scalar("loss/d_loss_real", self.d_loss_real),
+            tf.summary.scalar("loss/d_loss_fake_l1", self.d_loss_fake_l1),
             tf.summary.scalar("loss/d_loss_fake_gms", self.d_loss_fake_gms),
             tf.summary.scalar("loss/d_loss_fake_chrome", self.d_loss_fake_chrome),
-            tf.summary.scalar("loss/g_loss", self.g_loss),
-            tf.summary.scalar("loss/g_loss_l2", self.g_loss_l2),
+            tf.summary.scalar("loss/d_loss_fake", self.d_loss_fake),
+            tf.summary.scalar("loss/d_loss", self.d_loss),
+            tf.summary.scalar("loss/g_loss_l1", self.g_loss_l1),
             tf.summary.scalar("loss/g_loss_gms", self.g_loss_gms),
             tf.summary.scalar("loss/g_loss_chrome", self.g_loss_chrome),
+            tf.summary.scalar("loss/g_loss", self.g_loss),
             tf.summary.scalar("misc/measure", self.measure),
             tf.summary.scalar("misc/k_t", self.k_t),
             tf.summary.scalar("misc/d_lr", self.d_lr),
@@ -268,7 +272,7 @@ class Trainer(object):
         x = self.sess.run(self.G, {self.z: inputs})
         if path is None and save:
             path = os.path.join(root_path, '{}_G.png'.format(idx))
-            #save_image(x, path)
+            save_image(x, path)
             print("[*] Samples saved: {}".format(path))
         return x
 
@@ -286,7 +290,7 @@ class Trainer(object):
             x_path = os.path.join(path, '{}_D_{}.png'.format(idx, key))
             #changed for yiq
             x = self.sess.run(self.AE_x, {self.x: img})
-            #save_image(x, x_path)
+            save_image(x, x_path)
             print("[*] Samples saved: {}".format(x_path))
 
     def encode(self, inputs):
@@ -323,6 +327,20 @@ class Trainer(object):
         all_img_num = np.prod(generated.shape[:2])
         batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
         save_image(batch_generated, os.path.join(root_path, 'test{}_interp_G.png'.format(step)), nrow=10)
+
+    def interpolate_live_G(self, z_fixed, root_path, idx):
+        z_flex = np.random.uniform(-1, 1, size=(self.batch_size, self.z_num))
+        generated = []
+        for _, ratio in enumerate(np.linspace(0, 1, 10)):
+            z = np.stack([slerp(ratio, r1, r2) for r1, r2 in zip(z_fixed, z_flex)])
+            z_decode = self.generate(z, save=False)
+            generated.append(z_decode)
+
+        generated = np.stack(generated).transpose([1, 0, 2, 3, 4])
+
+        all_img_num = np.prod(generated.shape[:2])
+        batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
+        save_image(batch_generated, os.path.join(root_path, 'test{}_interp_G.png'.format(idx)), nrow=10)
 
     def interpolate_D(self, real1_batch, real2_batch, step=0, root_path="."):
         real1_encode = self.encode(real1_batch)
