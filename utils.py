@@ -29,7 +29,7 @@ def prepare_dirs_and_logger(config):
             else:
                 config.model_name = "{}_{}".format(config.dataset, config.load_path)
     else:
-        config.model_name = "{}_{}_lr{}_g{}_weights({}, {}, {})_z{}_{}".format(
+        config.model_name = "{}_{}_lr{}_g{}_weights({}, {}, {})_z{}_sz{}_{}".format(
             config.dataset,
             config.model_tag,
             str(config.g_lr),
@@ -38,6 +38,7 @@ def prepare_dirs_and_logger(config):
             str(config.gmsweight),
             str(config.chromeweight),
             str(config.z_num),
+            str(config.input_scale_size),
             get_time())
 
     if not hasattr(config, 'model_dir'):
