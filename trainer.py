@@ -62,9 +62,11 @@ class Trainer(object):
 
         self.g_lr = tf.Variable(config.g_lr, name='g_lr')
         self.d_lr = tf.Variable(config.d_lr, name='d_lr')
+        self.g_r_lr = tf.Variable(config.g_r_lr, name='g_r_lr')
 
         self.g_lr_update = tf.assign(self.g_lr, tf.maximum(self.g_lr * 0.5, config.lr_lower_boundary), name='g_lr_update')
         self.d_lr_update = tf.assign(self.d_lr, tf.maximum(self.d_lr * 0.5, config.lr_lower_boundary), name='d_lr_update')
+        self.g_r_lr_update = tf.assign(self.g_r_lr, tf.maximum(self.g_r_lr * 0.5, config.lr_lower_boundary), name='g_r_lr_update')
 
         self.gamma = config.gamma
         self.lambda_k = config.lambda_k
@@ -184,16 +186,25 @@ class Trainer(object):
                 self.z, self.conv_hidden_num, self.channel,
                 self.repeat_num, self.data_format, reuse=False)
 
+        G_r, self.G_r_var = GeneratorRCNN(G, self.channel, self.z_num, self.repeat_num,
+                                          self.conv_hidden_num, self.data_format)
+
+        G2, G2_var = GeneratorCNN(G_r, self.conv_hidden_num, self.channel, self.repeat_num,
+                                  reuse=True, data_format=self.data_format)
+
         d_out, self.D_z, self.D_var = DiscriminatorCNN(
                 tf.concat([G, x], 0), self.channel, self.z_num, self.repeat_num,
                 self.conv_hidden_num, self.data_format)
         AE_G, AE_x = tf.split(d_out, 2)
 
+        tf.add_to_collection('outputs', G)
+        tf.add_to_collection('outputs', d_out)
+        tf.add_to_collection('outputs', G_r)
+        tf.add_to_collection('outputs', G2)
+
         self.G = denorm_img(G, self.data_format)
+        self.G2 = denorm_img(G2, self.data_format)
         self.AE_G, self.AE_x = denorm_img(AE_G, self.data_format), denorm_img(AE_x, self.data_format)
-        #for yiq
-        #self.G_rgb = tf.transpose(tf.stack(fromyiq(tf.transpose(self.G, [0, 3, 1, 2])/255.), axis=1)*255., [0, 2, 3, 1])
-        #self.AE_x_rgb = tf.transpose(tf.stack(fromyiq(tf.transpose(self.AE_x, [0, 3, 1, 2])/255.), axis=1)*255., [0, 2, 3, 1])
 
         if self.optimizer == 'adam':
             optimizer = tf.train.AdamOptimizer
@@ -213,9 +224,11 @@ class Trainer(object):
         self.g_loss_l1 = tf.reduce_mean(tf.abs(AE_G - G))
         self.g_loss_gms, self.g_loss_chrome = prep_and_call_qs(G, AE_G)
         self.g_loss = (self.l1w*self.g_loss_l1 + self.gmsw*self.g_loss_gms + self.chromew*self.g_loss_chrome)/self.totw
+        self.g_r_loss = tf.reduce_mean(tf.abs(G - G2))
 
         d_optim = d_optimizer.minimize(self.d_loss, var_list=self.D_var)
         g_optim = g_optimizer.minimize(self.g_loss, global_step=self.step, var_list=self.G_var)
+        g_r_optim = g_r_optimizer.minimize(
 
         self.balance = self.gamma * self.d_loss_real - self.g_loss
         self.measure = self.d_loss_real + tf.abs(self.balance)
