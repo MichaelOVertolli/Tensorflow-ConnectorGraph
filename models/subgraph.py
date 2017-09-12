@@ -22,7 +22,18 @@ class SubGraph(object):
             self.outputs[tensor.name] = tensor
         self.input_names = self.inputs.keys()
         self.output_names = self.outputs.keys()
-        self.collections = [model_name+'_'+key for key in self.graph.get_all_collection_keys() if key != 'inputs' and key != 'outputs']
+        self.collections = ['_'.join([model_name, key])
+                            for key in self.graph.get_all_collection_keys()
+                            if key != 'inputs' and key != 'outputs']
+
+
+    def __eq__(self, other):
+        #Not using duck typing for my own sanity.
+        if type(other) is SubGraph:
+            return self.name == other.name
+        else:
+            raise TypeError('Comparison with invalid type {}.'.format(type(other))
+
 
     def builder(model_name):
         path = os.path.join(DIR, model_name)
@@ -35,7 +46,7 @@ class SubGraph(object):
                 saver = tf.train.import_meta_graph(os.path.join(path, META))
                 saver.restore(sess, os.path.join(path, GRAPH))
         else:
-            graph, saver = graph_.build_graph(config.config())
+            graph, saver = graph_.build_graph(model_name, config.config())
             init = tf.variables_initializer(graph.get_collection('variables'))
             with tf.Session(graph=graph) as sess:
                 sess.run(init)

@@ -18,3 +18,11 @@ class MissingTensorError(ConnectionError):
 
 class MissingConnectionError(ConnectionError):
     pass
+
+
+class ConnectionConflictError(ConnectionError):
+    pass
+
+
+class ExhaustedGraphStepsError(ConnectionError):
+    pass

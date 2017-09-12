@@ -1,24 +1,62 @@
 from errors import MissingSubgraphError, MissingTensorError, MissingConnectionError
+from errors import ConnectionConflictError, ExhaustedGraphStepsError
 import tensorflow as tf
 
 
 class ConnectorGraph(object):
 
     def __init__(self):
+        self._MAX_GRAPH_STEPS = 10000 #sanity constant for maximum depth of the graph
+                                      #helpful for cycle check
         self.subgraphs = {}
-        #connections are from_to: Connection()
+        #connections are fromgraph_fromtensor_tograph_totensor: Connection()
         self.connections = {}
 
 
-    def connect_graph(self):
+    def connect_graph(self, inputs, outputs):
         graph = tf.Graph()
-        start_subgraphs = self.get_start_subgraphs()
-        end_subgraphs = self.get_end_subgraphs()
+        input_maps = dict([(subgraph.name, None) for subgraph in self.subgraphs])
+        processed = dict([(subgraph.name, False) for subgraph in self.subgraphs])
+        pending = [self.get_start_subgraphs]
         with tf.Session(graph=graph) as sess:
-            for subgraph in start_subgraphs:
-                connections = self.get_subgraph_connections(subgraph.name)
-                for conn in connections:
-                    
+            for count in range(self._MAX_GRAPH_STEPS):
+                subgraph = pending.pop(0)
+                completed_back_conns = [processed[conn.from_graph.name]
+                                        for conn in self.get_back_connections(subgraph.name)]
+                if not all(completed_back_conns):
+                    #Push the graph to the back of the queue
+                    #If there is a cycle, this will repeat indefinitely
+                    pending.append(subgraph)
+                else:
+                    _ = tf.import_graph_def(subgraph.graph.as_graph_def(),
+                                            input_map=input_maps[subgraph.name],
+                                            name='')
+                    self.add_collections(subgraph)
+                    processed[subgraph.name] = True
+                    forward_conn = self.get_forward_connections(subgraph.name)
+                    for conn in forward_conn:
+                        if not processed[conn.to_graph.name]:
+                            #clearer and handles initialization
+                            input_maps[conn.to_graph.name] = self.build_input_map(sess.graph, [conn], input_maps[conn.to_graph.name])
+                            pending.append(conn.to_graph)
+            if count == self._MAX_GRAPH_STEPS - 1:
+                raise ExhaustedGraphStepsError('Probable cycle in connections. Otherwise, increase MAX_GRAPH_STEPS size.')
+        return graph
+
+
+    def build_input_map(self, graph, connections, input_map):
+        if input_map is None:
+            input_map = {}
+        for conn in connections:
+            input_map[conn.to_tensor] = graph.get_tensor_by_name(conn.from_tensor)
+        return input_map
+
+
+    def add_collections(self, subgraph):
+        for collection in subgraph.collections:
+            tensors = [sess.get_tensor_by_name(tensor.name) for tensor in subgraph.graph.get_collection(collection)]
+            for tensor in tensors:
+                tf.add_to_collection(collection, tensor)
 
 
     def add_subgraph(self, subgraph):
@@ -45,7 +83,7 @@ class ConnectorGraph(object):
         to_tensor   := (string) the name of the tensor that terminates the connection
 
         """
-        identifier = from_graph+'_'+to_graph
+        identifier = '_'.join([from_graph, from_tensor, to_graph, to_tensor]) 
         try:
             fg = self.subgraphs[from_graph]
         except KeyError:
@@ -58,6 +96,18 @@ class ConnectorGraph(object):
             raise MissingTensor('{} is not a valid output tensor in the {} subgraph.'.format(from_tensor, from_graph))
         if not to_tensor in tg.input_names:
             raise MissingTensor('{} is not a valid input tensor in the {} subgraph.'.format(to_tensor, to_graph))
+        #check if to_tensor already mapped
+        to_ident = '_'.join([to_graph, to_tensor])
+        already_mapped = [conn_key if (conn_key != identifier and to_ident in conn_key)] else False \\
+                         for conn_key in self.connections.keys()]
+        if any(already_mapped):
+            #There can only ever be one conflicting connection as the error occurs the moment there is one.
+            conflict_conn = self.connections[[_ for _ in already_mapped if _ != False][0]]
+            conflict_graph = conflict_conn.from_graph
+            conflict_tensor = conflict_conn.from_tensor
+            error_text = 'Tensor {} of subgraph {} already has an input connection from tensor {} of subgraph {}.'.format(
+                to_tensor, to_graph, conflict_tensor, conflict_graph)
+            raise ConnectionConflictError(error_text)
         self.connections[identifier] = Connection(from_graph, to_graph, from_tensor, to_tensor)
 
     def remove_connection(self, from_graph, to_graph, from_tensor, to_tensor):
@@ -70,7 +120,7 @@ class ConnectorGraph(object):
         to_tensor   := (string) the name of the tensor that terminates the connection
 
         """
-        identifier = from_graph+'_'+to_graph
+        identifier = '_'.join([from_graph, from_tensor, to_graph, to_tensor]) 
         try:
             fg = self.subgraphs[from_graph]
         except KeyError:
@@ -91,14 +141,22 @@ class ConnectorGraph(object):
             del self.connections[identifier]
 
 
-    def get_subgraph_connections(self, subgraph_name):
+    def get_back_connections(self, subgraph_name):
+        return self._get_subgraph_connections(subgraph_name, 'to_graph')
+
+
+    def get_forward_connections(self, subgraph_name):
+        return self._get_subgraph_connections(subgraph_name, 'from_graph')
+
+
+    def _get_subgraph_connections(self, subgraph_name, type_attribute):
         try:
             subgraph = self.subgraphs[subgraph_name]
         except KeyError:
             raise MissingSubgraphError('{} has not been added as a subgraph.'.format(subgraph_name))
         connections = []
-        for identifier, conn in self.connections.values():
-            if conn.from_graph == subgraph_name:
+        for identifier, conn in self.connections.items():
+            if getattr(conn, type_attribute) == subgraph_name:
                 connections.append(conn)
         return connections
 
@@ -123,17 +181,19 @@ class ConnectorGraph(object):
         return self._get_conn_part('to_graph')
 
 
-    def get_from_tensors(self):
-        return self._get_conn_part('from_tensor')
+    def get_from_tensors(self, connections):
+        return self._get_conn_part('from_tensor', connections=None)
 
 
-    def get_to_tensors(self):
-        return self._get_conn_part('to_tensor')
+    def get_to_tensors(self, connections):
+        return self._get_conn_part('to_tensor', connections=None)
 
 
-    def _get_conn_part(self, type_attribute):
+    def _get_conn_part(self, type_attribute, connections=None):
+        if connections is None:
+            connections = self.connections.values()
         subgraphs = []
-        for identifier, conn in self.connections.values():
+        for conn in connections:
             subgraphs.append(getattr(conn, type_attribute))
         return subgraphs
 
