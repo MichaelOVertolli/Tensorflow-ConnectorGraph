@@ -12,7 +12,7 @@ DIR = './models/'
 
 
 class SubGraph(object):
-    def __init__(self, model_name, session):
+    def __init__(self, model_name, config_type, session):
         """Initializes a SubGraph object from model name and a session object.
 
         Arguments:
@@ -23,7 +23,7 @@ class SubGraph(object):
         if session.graph.version != 0:
             raise SessionGraphError('The session graph must be empty.')
         self.name = model_name
-        self.graph = self.builder(model_name, session)
+        self.graph = self.builder(model_name, config_type, session)
         self.inputs = {}
         for tensor in self.graph.get_collection('inputs'):
             self.inputs[tensor.name] = tensor
@@ -45,7 +45,7 @@ class SubGraph(object):
             raise TypeError('Comparison with invalid type {}.'.format(type(other)))
 
 
-    def builder(self, model_name, sess):
+    def builder(self, model_name, config_type, sess):
         path = os.path.join(DIR, model_name)
         files = os.listdir(path)
         config = import_module(CONFIG_FILE.format(model_name))
@@ -54,7 +54,7 @@ class SubGraph(object):
             saver = tf.train.import_meta_graph(os.path.join(path, META))
             saver.restore(sess, os.path.join(path, GRAPH))
         else:
-            saver = graph_.build_graph(model_name, config.config())
+            saver = graph_.build_graph(model_name, config.config(config_type))
             init = tf.variables_initializer(tf.get_collection('variables'))
             sess.run(init)
             saver.save(sess, os.path.join(path, GRAPH), write_state=False)
