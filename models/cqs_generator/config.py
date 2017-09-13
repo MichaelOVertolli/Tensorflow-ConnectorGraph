@@ -1,4 +1,5 @@
 from .. import config_base as cb
+from ..errors import ConfigError
 import numpy as np
 
 
@@ -30,7 +31,9 @@ def config(type_):
         config.size = 128
         config.repeat_num = int(np.log2(config.size)) - 2
         config.reuse = False
-
+    else:
+        raise ConfigError('Invalid config type: {}.'.format(type_))
+    
     config.name = type_
 
     return config

@@ -4,6 +4,10 @@ class Error(Exception):
     pass
 
 
+class ConfigError(Exception):
+    pass
+
+
 class ConnectionError(Error):
     pass
 
