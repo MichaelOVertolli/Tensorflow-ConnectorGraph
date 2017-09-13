@@ -26,3 +26,7 @@ class ConnectionConflictError(ConnectionError):
 
 class ExhaustedGraphStepsError(ConnectionError):
     pass
+
+
+class SessionGraphError(Error):
+    pass

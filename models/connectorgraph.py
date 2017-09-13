@@ -1,5 +1,7 @@
 from errors import MissingSubgraphError, MissingTensorError, MissingConnectionError
 from errors import ConnectionConflictError, ExhaustedGraphStepsError
+from errors import SessionGraphError
+from subgraph import SubGraph
 import tensorflow as tf
 
 
@@ -13,34 +15,38 @@ class ConnectorGraph(object):
         self.connections = {}
 
 
-    def connect_graph(self, inputs, outputs):
-        graph = tf.Graph()
+    def connect_graph(self, inputs, outputs, sess):
+        if sess.graph.version != 0:
+            raise SessionGraphError('The session graph must be empty.')
         input_maps = dict([(subgraph.name, None) for subgraph in self.subgraphs])
         processed = dict([(subgraph.name, False) for subgraph in self.subgraphs])
         pending = [self.get_start_subgraphs]
-        with tf.Session(graph=graph) as sess:
-            for count in range(self._MAX_GRAPH_STEPS):
-                subgraph = pending.pop(0)
-                completed_back_conns = [processed[conn.from_graph.name]
-                                        for conn in self.get_back_connections(subgraph.name)]
-                if not all(completed_back_conns):
-                    #Push the graph to the back of the queue
-                    #If there is a cycle, this will repeat indefinitely
-                    pending.append(subgraph)
-                else:
-                    _ = tf.import_graph_def(subgraph.graph.as_graph_def(),
-                                            input_map=input_maps[subgraph.name],
-                                            name='')
-                    self.add_collections(subgraph)
-                    processed[subgraph.name] = True
-                    forward_conn = self.get_forward_connections(subgraph.name)
-                    for conn in forward_conn:
-                        if not processed[conn.to_graph.name]:
-                            #clearer and handles initialization
-                            input_maps[conn.to_graph.name] = self.build_input_map(sess.graph, [conn], input_maps[conn.to_graph.name])
-                            pending.append(conn.to_graph)
-            if count == self._MAX_GRAPH_STEPS - 1:
-                raise ExhaustedGraphStepsError('Probable cycle in connections. Otherwise, increase MAX_GRAPH_STEPS size.')
+        for count in range(self._MAX_GRAPH_STEPS):
+            subgraph = pending.pop(0)
+            completed_back_conns = [processed[conn.from_graph.name]
+                                    for conn in self.get_back_connections(subgraph.name)]
+            if not all(completed_back_conns):
+                #Push the graph to the back of the queue
+                #If there is a cycle, this will repeat indefinitely
+                pending.append(subgraph)
+            else:
+                _ = tf.import_graph_def(subgraph.graph.as_graph_def(),
+                                        input_map=input_maps[subgraph.name],
+                                    name='')
+            self.add_collections(subgraph)
+            processed[subgraph.name] = True
+            forward_conn = self.get_forward_connections(subgraph.name)
+            for conn in forward_conn:
+                if not processed[conn.to_graph.name]:
+                    #clearer and handles initialization
+                    input_maps[conn.to_graph.name] = self.build_input_map(sess.graph, [conn], input_maps[conn.to_graph.name])
+                    pending.append(conn.to_graph)
+        if count == self._MAX_GRAPH_STEPS - 1:
+            raise ExhaustedGraphStepsError('Probable cycle in connections. Otherwise, increase MAX_GRAPH_STEPS size.')
+        for inpt in inputs:
+            tf.add_to_collection('inputs', sess.graph.get_tensor_by_name(inpt))
+        for output in outputs:
+            tf.add_to_collection('outputs', sess.graph.get_tensor_by_name(output))
         return graph
 
 
@@ -93,13 +99,13 @@ class ConnectorGraph(object):
         except KeyError:
             raise MissingSubgraphError('{} has not been added as a subgraph.'.format(to_graph))
         if not from_tensor in fg.input_names:
-            raise MissingTensor('{} is not a valid output tensor in the {} subgraph.'.format(from_tensor, from_graph))
+            raise MissingTensorError('{} is not a valid output tensor in the {} subgraph.'.format(from_tensor, from_graph))
         if not to_tensor in tg.input_names:
-            raise MissingTensor('{} is not a valid input tensor in the {} subgraph.'.format(to_tensor, to_graph))
+            raise MissingTensorError('{} is not a valid input tensor in the {} subgraph.'.format(to_tensor, to_graph))
         #check if to_tensor already mapped
         to_ident = '_'.join([to_graph, to_tensor])
-        already_mapped = [conn_key if (conn_key != identifier and to_ident in conn_key)] else False \\
-                         for conn_key in self.connections.keys()]
+        already_mapped = [conn_key if (conn_key != identifier and to_ident in conn_key) else False
+                          for conn_key in self.connections.keys()]
         if any(already_mapped):
             #There can only ever be one conflicting connection as the error occurs the moment there is one.
             conflict_conn = self.connections[[_ for _ in already_mapped if _ != False][0]]
@@ -199,8 +205,15 @@ class ConnectorGraph(object):
 
     
 class Connection(object):
-    def __init__(from_graph, to_graph, from_tensor, to_tensor):
+    def __init__(self, from_graph, to_graph, from_tensor, to_tensor):
         self.from_graph = from_graph
         self.to_graph = to_graph
         self.from_tensor = from_tensor
         self.to_tensor = to_tensor
+
+
+    def __eq__(self, other):
+        return self.from_graph == other.from_graph and \
+            self.to_graph == other.to_graph and \
+            self.from_tensor == other.from_tensor and \
+            self.to_tensor == other.to_tensor
