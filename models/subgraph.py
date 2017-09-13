@@ -17,6 +17,7 @@ class SubGraph(object):
 
         Arguments:
         model_name  := (string) unique folder name of model in models' folder
+        config_type := (string) specifies which set of config parameters to use
         session     := (tf.Session) a reference to a session object with an empty Graph
 
         """

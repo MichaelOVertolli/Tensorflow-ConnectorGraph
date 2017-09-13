@@ -60,7 +60,8 @@ class ConnectorGraph(object):
 
     def add_collections(self, subgraph):
         for collection in subgraph.collections:
-            tensors = [sess.get_tensor_by_name(tensor.name) for tensor in subgraph.graph.get_collection(collection)]
+            tensors = [sess.get_tensor_by_name(tensor.name) for tensor in subgraph.graph.get_collection(collection)
+                       if 'null' not in tensor.name]
             for tensor in tensors:
                 tf.add_to_collection(collection, tensor)
 
@@ -98,7 +99,7 @@ class ConnectorGraph(object):
             tg = self.subgraphs[to_graph]
         except KeyError:
             raise MissingSubgraphError('{} has not been added as a subgraph.'.format(to_graph))
-        if not from_tensor in fg.input_names:
+        if not from_tensor in fg.output_names:
             raise MissingTensorError('{} is not a valid output tensor in the {} subgraph.'.format(from_tensor, from_graph))
         if not to_tensor in tg.input_names:
             raise MissingTensorError('{} is not a valid input tensor in the {} subgraph.'.format(to_tensor, to_graph))
@@ -135,10 +136,10 @@ class ConnectorGraph(object):
             tg = self.subgraphs[to_graph]
         except KeyError:
             raise MissingSubgraphError('{} has not been added as a subgraph.'.format(to_graph))
-        if not from_tensor in fg.input_names:
-            raise MissingTensor('{} is not a valid output tensor in the {} subgraph.'.format(from_tensor, from_graph))
+        if not from_tensor in fg.output_names:
+            raise MissingTensorError('{} is not a valid output tensor in the {} subgraph.'.format(from_tensor, from_graph))
         if not to_tensor in tg.input_names:
-            raise MissingTensor('{} is not a valid input tensor in the {} subgraph.'.format(to_tensor, to_graph))
+            raise MissingTensorError('{} is not a valid input tensor in the {} subgraph.'.format(to_tensor, to_graph))
         try:
             _ = self.connections[identifier]
         except KeyError:
