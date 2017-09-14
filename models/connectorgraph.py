@@ -18,28 +18,32 @@ class ConnectorGraph(object):
     def connect_graph(self, inputs, outputs, sess):
         if sess.graph.version != 0:
             raise SessionGraphError('The session graph must be empty.')
-        input_maps = dict([(subgraph.name, None) for subgraph in self.subgraphs])
-        processed = dict([(subgraph.name, False) for subgraph in self.subgraphs])
-        pending = [self.get_start_subgraphs]
+        input_maps = dict([(subgraph_name, None) for subgraph_name in self.subgraphs.keys()])
+        processed = dict([(subgraph_name, False) for subgraph_name in self.subgraphs.keys()])
+        pending = self.get_start_subgraphs()
         for count in range(self._MAX_GRAPH_STEPS):
-            subgraph = pending.pop(0)
-            completed_back_conns = [processed[conn.from_graph.name]
-                                    for conn in self.get_back_connections(subgraph.name)]
+            try:
+                subgraph_name = pending.pop(0)
+            except IndexError:
+                break
+            subgraph = self.subgraphs[subgraph_name]
+            completed_back_conns = [processed[conn.from_graph]
+                                    for conn in self.get_back_connections(subgraph_name)]
             if not all(completed_back_conns):
                 #Push the graph to the back of the queue
                 #If there is a cycle, this will repeat indefinitely
-                pending.append(subgraph)
+                pending.append(subgraph_name)
             else:
                 _ = tf.import_graph_def(subgraph.graph.as_graph_def(),
-                                        input_map=input_maps[subgraph.name],
-                                    name='')
-            self.add_collections(subgraph)
-            processed[subgraph.name] = True
-            forward_conn = self.get_forward_connections(subgraph.name)
+                                        input_map=input_maps[subgraph_name],
+                                        name='')
+            self.add_collections(subgraph, sess)
+            processed[subgraph_name] = True
+            forward_conn = self.get_forward_connections(subgraph_name)
             for conn in forward_conn:
-                if not processed[conn.to_graph.name]:
+                if not processed[conn.to_graph]:
                     #clearer and handles initialization
-                    input_maps[conn.to_graph.name] = self.build_input_map(sess.graph, [conn], input_maps[conn.to_graph.name])
+                    input_maps[conn.to_graph] = self.build_input_map(sess.graph, [conn], input_maps[conn.to_graph])
                     pending.append(conn.to_graph)
         if count == self._MAX_GRAPH_STEPS - 1:
             raise ExhaustedGraphStepsError('Probable cycle in connections. Otherwise, increase MAX_GRAPH_STEPS size.')
@@ -47,7 +51,7 @@ class ConnectorGraph(object):
             tf.add_to_collection('inputs', sess.graph.get_tensor_by_name(inpt))
         for output in outputs:
             tf.add_to_collection('outputs', sess.graph.get_tensor_by_name(output))
-        return graph
+        return sess.graph
 
 
     def build_input_map(self, graph, connections, input_map):
@@ -58,12 +62,14 @@ class ConnectorGraph(object):
         return input_map
 
 
-    def add_collections(self, subgraph):
+    def add_collections(self, subgraph, sess):
         for collection in subgraph.collections:
-            tensors = [sess.get_tensor_by_name(tensor.name) for tensor in subgraph.graph.get_collection(collection)
+            name = '/'.join([subgraph.name, collection])
+            tensors = [sess.graph.get_tensor_by_name(tensor.name)
+                       for tensor in subgraph.graph.get_collection(collection)
                        if 'null' not in tensor.name]
             for tensor in tensors:
-                tf.add_to_collection(collection, tensor)
+                tf.add_to_collection(name, tensor)
 
 
     def add_subgraph(self, subgraph):

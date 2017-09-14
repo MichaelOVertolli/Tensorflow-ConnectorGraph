@@ -33,8 +33,7 @@ class SubGraph(object):
             self.outputs[tensor.name] = tensor
         self.input_names = self.inputs.keys()
         self.output_names = self.outputs.keys()
-        self.collections = ['_'.join([model_name, key])
-                            for key in self.graph.get_all_collection_keys()
+        self.collections = [key for key in self.graph.get_all_collection_keys()
                             if key != 'inputs' and key != 'outputs']
 
 
@@ -47,10 +46,11 @@ class SubGraph(object):
 
 
     def builder(self, model_name, config_type, sess):
-        path = os.path.join(DIR, model_name)
+        module_name = '_'.join(model_name.split('_')[:-1]) #strips the index (_#) off of the model name
+        path = os.path.join(DIR, module_name)
         files = os.listdir(path)
-        config = import_module(CONFIG_FILE.format(model_name))
-        graph_ = import_module(GRAPH_FILE.format(model_name))
+        config = import_module(CONFIG_FILE.format(module_name))
+        graph_ = import_module(GRAPH_FILE.format(module_name))
         if META in files:
             saver = tf.train.import_meta_graph(os.path.join(path, META))
             saver.restore(sess, os.path.join(path, GRAPH))

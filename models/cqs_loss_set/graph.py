@@ -20,7 +20,6 @@ def build_graph(model_name, config):
     tf.add_to_collection('inputs', real)
     tf.add_to_collection('inputs', autoencoded)
     tf.add_to_collection('outputs', loss)
-    #tf.add_to_collection('trainable', G_vars)
     saver = tf.train.Saver()
     return saver
 
