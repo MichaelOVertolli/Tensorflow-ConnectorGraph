@@ -53,7 +53,9 @@ class ConnectorGraph(object):
             tf.add_to_collection('inputs', sess.graph.get_tensor_by_name(inpt))
         for output in outputs:
             tf.add_to_collection('outputs', sess.graph.get_tensor_by_name(output))
-        return sess.graph
+        #TODO: if going to preserve graph, then should have error checking
+        #      when collections are modified, which invalidates graph state 
+        self.graph = sess.graph
 
 
     def build_input_map(self, graph, connections, input_map):
