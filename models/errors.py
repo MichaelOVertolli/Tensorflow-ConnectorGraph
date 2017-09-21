@@ -34,3 +34,11 @@ class ExhaustedGraphStepsError(ConnectionError):
 
 class SessionGraphError(Error):
     pass
+
+
+class SubGraphError(Error):
+    pass
+
+
+class FirstInitialization(SubGraphError):
+    pass
