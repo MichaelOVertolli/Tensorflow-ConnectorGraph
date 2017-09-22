@@ -32,6 +32,10 @@ class ExhaustedGraphStepsError(ConnectionError):
     pass
 
 
+class GraphNotConnectedError(ConnectionError):
+    pass
+
+
 class SessionGraphError(Error):
     pass
 

@@ -15,7 +15,6 @@ def config(type_):
     config.hidden_num = 128
     config.output_num = 3 #channels
     config.data_format = 'NCHW'
-    config.batch = 16
 
     if type_ == Z128_SZ64:
         config.z_num = 128

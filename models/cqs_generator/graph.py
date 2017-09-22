@@ -4,7 +4,7 @@ from .. import models
 
 
 def build_graph(model_name, config):
-    G_in = tf.placeholder(tf.float32, [config.batch, config.z_num], name='input')
+    G_in = tf.placeholder(tf.float32, [None, config.z_num], name='input')
     G_out, G_vars = models.GeneratorCNN(G_in,
                                         config.hidden_num, config.output_num,
                                         config.repeat_num, config.data_format,
