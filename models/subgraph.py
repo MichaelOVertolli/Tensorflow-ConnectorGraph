@@ -82,12 +82,16 @@ class BuiltSubGraph(SubGraph):
         return '_'.join(model_name.split('_')[:-1]) #strips the index (_#) off of the model name
 
     
-    def restore(self, model_name, config_type, sess, input_map=None):
+    def restore(self, model_name, config_type, sess, input_map=None, log_dir=None):
         self.saver = tf.train.import_meta_graph(os.path.join(self.path,
                                                              META.format(config_type)),
                                                 import_scope=model_name,
                                                 input_map=input_map)
-        self.saver.restore(sess, os.path.join(self.path, GRAPH.format(config_type)))
+        if log_dir is None:
+            self.saver.restore(sess, os.path.join(self.path, GRAPH.format(config_type)))
+        else:
+            self.saver = tf.train.Saver(sess.graph.get_collection('variables'))
+            self.saver.restore(sess, log_dir)
 
 
 

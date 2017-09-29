@@ -55,6 +55,7 @@ outputs = [
 
 
 def build_graph(config):
+    #TODO: fix partial loading of saved variables from this model into partial models
     generator = init_subgraph(GENR, MDL_TYPE)
     discriminator = init_subgraph(DISC, MDL_TYPE)
     disc_loss_set = init_subgraph(LSSD, LSS_TYPE)
@@ -74,40 +75,10 @@ def build_graph(config):
 
     conngraph.quick_connect(connections)
 
-    # conngraph.add_connection(generator.name, concat_op.name,
-    #                          generator.output_names[0],
-    #                          concat_op.input_names[0])
-    # conngraph.add_connection(concat_op.name, discriminator.name,
-    #                          concat_op.output_names[0],
-    #                          discriminator.input_names[0])
-    # conngraph.add_connection(discriminator.name,
-    #                          split_op.name,
-    #                          discriminator.output_names[0],
-    #                          split_op.input_names[0])
-    # conngraph.add_connection(split_op.name,
-    #                          disc_loss_set.name,
-    #                          split_op.output_names[1],
-    #                          disc_loss_set.input_names[1])
-    # conngraph.add_connection(generator.name,
-    #                          gen_loss_set.name,
-    #                          generator.output_names[0],
-    #                          gen_loss_set.input_names[0])
-    # conngraph.add_connection(split_op.name,
-    #                          gen_loss_set.name,
-    #                          split_op.output_names[0],
-    #                          gen_loss_set.input_names[1])
-    
-    # inputs = [generator.input_names[0], concat_op.input_names[1], disc_loss_set.input_names[0]]
-    # outputs = [disc_loss_set.output_names[0], gen_loss_set.output_names[0]]
 
     with tf.Session(graph=tf.Graph()) as sess:
         conngraph.connect_graph(inputs, outputs, sess)
         
-        # saver = tf.train.Saver(graph.get_collection(GENR+'/variables'))
-        # saver.restore(sess, os.path.join('./models/cqs_generator/graph_cqs_generator_0'))
-        # saver = tf.train.Saver(graph.get_collection(DISC+'/variables'))
-        # saver.restore(sess, os.path.join('./models/cqs_discriminator/graph_cqs_discriminator_0'))
-        # graph = sess.graph
         with tf.variable_scope('cqs_train'):
             k_t = tf.Variable(0., trainable=False, name='k_t')
 

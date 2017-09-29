@@ -218,6 +218,16 @@ class ConnectorGraph(object):
         return subgraphs
 
 
+    def get_all_variables(self):
+        if self.graph is None:
+            raise GraphNotConnectedError('The graph has not be connected yet.')
+        variables = []
+        for k in self.graph.get_all_collection_keys():
+            if k == 'variables' or '/variables' in k:
+                variables.extend(self.graph.get_collection(k))
+        return variables
+
+
     def print_subgraphs(self):
         for subgraph in self.subgraphs.values():
             print subgraph
