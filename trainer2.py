@@ -18,10 +18,11 @@ class Trainer(object):
         config = import_module(CONFIG_FILE.format(model_name))
         graph = import_module(GRAPH_FILE.format(model_name))
 
-        with tf.Session() as sess:
-            self.c_graph = graph.build_graph(config.config(model_type))
-        self.saver = tf.train.Saver()
-        self.summary_writer = tf.summary.FileWriter(self.log_dir)
+        self.c_graph = graph.build_graph(config.config(model_type))
+        
+        with self.c_graph.graph.as_default():
+            self.saver = tf.train.Saver()
+            self.summary_writer = tf.summary.FileWriter(self.log_dir)
 
         sv = tf.train.Supervisor(logdir=self.log_dir,
                                  is_chief=True,
