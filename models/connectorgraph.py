@@ -1,6 +1,7 @@
 from errors import MissingSubgraphError, MissingTensorError, MissingConnectionError
 from errors import ConnectionConflictError, ExhaustedGraphStepsError
 from errors import SessionGraphError, GraphNotConnectedError
+from errors import NoVariableExistsError, MultipleVariablesExistError
 from subgraph import SubGraph
 import tensorflow as tf
 
@@ -221,11 +222,22 @@ class ConnectorGraph(object):
     def get_all_variables(self):
         if self.graph is None:
             raise GraphNotConnectedError('The graph has not be connected yet.')
-        variables = []
-        for k in self.graph.get_all_collection_keys():
-            if k == 'variables' or '/variables' in k:
-                variables.extend(self.graph.get_collection(k))
-        return variables
+        elif self._all_variables is None:
+            self._all_variables = []
+            for k in self.graph.get_all_collection_keys():
+                if k == 'variables' or '/variables' in k:
+                    self._all_variables.extend(self.graph.get_collection(k))
+        return self._all_variables
+
+
+    def get_variable(self, variable_name):
+        results = [var for var in self.get_all_variables() if variable_name == var.name]
+        if len(results) == 0:
+            raise NoVariableExistsError('{} does not exist.'.format(variable_name))
+        elif len(results) > 1:
+            raise MultipleVariablesExistError('{} matches multiple variables.'.format(variable_name))
+        else:
+            return results[0]
 
 
     def print_subgraphs(self):

@@ -109,8 +109,6 @@ def build_graph(config):
                 k_update = tf.assign(k_t, tf.clip_by_value(k_t + config.lambda_k * balance, 0, 1))
                 k_update = tf.identity(k_update, name='k_update')
 
-            step = tf.Variable(0, name='step', trainable=False)
-
             summary_op = tf.summary.merge([
                 tf.summary.image('G', denorm_img(sess.graph.get_tensor_by_name(GENR+OUTP), config.data_format)),
                 tf.summary.image('AE_G', denorm_img(sess.graph.get_tensor_by_name(SPLT+GOUT), config.data_format)),
@@ -133,7 +131,6 @@ def build_graph(config):
         tf.add_to_collection('outputs', measure)
         tf.add_to_collection('outputs', g_lr_update)
         tf.add_to_collection('outputs', d_lr_update)
-        tf.add_to_collection('outputs', step)
         tf.add_to_collection('summary', summary_op)
         
     return conngraph

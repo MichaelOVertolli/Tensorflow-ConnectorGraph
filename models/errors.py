@@ -36,6 +36,14 @@ class GraphNotConnectedError(ConnectionError):
     pass
 
 
+class NoVariableExistsError(ConnectionError):
+    pass
+
+
+class MultipleVariablesExistError(ConnectionError):
+    pass
+
+
 class SessionGraphError(Error):
     pass
 
