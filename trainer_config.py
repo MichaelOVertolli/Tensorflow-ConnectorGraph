@@ -5,6 +5,8 @@ from models.errors import ConfigError
 def config():
     config = Config()
 
+    config.use_gpu = True
+
     config.max_step = 100
     config.start_step = 0
     config.save_step = 5000
