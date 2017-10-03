@@ -38,19 +38,17 @@ class Trainer(object):
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
             self.step = tf.Variable(0, name='step', trainable=False)
             
+            sv = tf.train.Supervisor(logdir=self.log_dir,
+                                     is_chief=True,
+                                     saver=self.saver,
+                                     summary_op=None,
+                                     summary_writer=self.summary_writer,
+                                     save_model_secs=1200,
+                                     global_step=self.step,
+                                     ready_for_local_init_op=None)
 
-        sv = tf.train.Supervisor(logdir=self.log_dir,
-                                 is_chief=True,
-                                 saver=self.saver,
-                                 summary_op=None,
-                                 summary_writer=self.summary_writer,
-                                 save_model_secs=1200,
-                                 global_step=self.step,
-                                 ready_for_local_init_op=None)
-
-        gpu_options = tf.GPUOptions(allow_growth=True)
-        sess_config = tf.ConfigProto(allow_soft_placement=True,
-                                     gpu_options=gpu_options)
-
-        #with self.c_graph.graph.as_default():
-        #    self.sess = sv.prepare_or_wait_for_session(config=sess_config)
+            gpu_options = tf.GPUOptions(allow_growth=True)
+            sess_config = tf.ConfigProto(allow_soft_placement=True,
+                                         gpu_options=gpu_options)
+            
+            self.sess = sv.prepare_or_wait_for_session(config=sess_config)
