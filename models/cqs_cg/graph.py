@@ -125,12 +125,13 @@ def build_graph(config):
             ])
 
         sess.graph.clear_collection('outputs')
-        tf.add_to_collection('outputs', d_out)
-        tf.add_to_collection('outputs', k_t)
+        tf.add_to_collection('outputs_interim', d_out)
+        tf.add_to_collection('outputs_interim', g_loss)
+        tf.add_to_collection('outputs_interim', k_t)
         tf.add_to_collection('outputs', k_update)
         tf.add_to_collection('outputs', measure)
-        tf.add_to_collection('outputs', g_lr_update)
-        tf.add_to_collection('outputs', d_lr_update)
+        tf.add_to_collection('outputs_lr', g_lr_update)
+        tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
         
     return conngraph
