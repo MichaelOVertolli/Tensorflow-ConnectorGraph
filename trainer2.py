@@ -52,5 +52,5 @@ class Trainer(object):
         sess_config = tf.ConfigProto(allow_soft_placement=True,
                                      gpu_options=gpu_options)
 
-        with self.c_graph.graph.as_default():
-            self.sess = sv.prepare_or_wait_for_session(config=sess_config)
+        #with self.c_graph.graph.as_default():
+        #    self.sess = sv.prepare_or_wait_for_session(config=sess_config)
