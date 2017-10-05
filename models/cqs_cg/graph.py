@@ -134,6 +134,19 @@ def build_graph(config):
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
+
+        def get_feed_dict(self, data_loader, config, sess):
+            x = data_loader
+            x = norm_img(x)
+            x = sess.run(x)
+            z = tf.random_uniform((config.batch_size, config.z_num), minval=-1.0, maxval=1.0)
+
+            feed_dict = {GENR+INPT: z, 
+                         CNCT+D_IN: x,
+                         LSSD+O_IN: x}
+            return feed_dict
+        
+        conngraph.get_feed_dict = get_feed_dict
         
     return conngraph
 
@@ -151,6 +164,13 @@ def to_nhwc(image, data_format):
     else:
         new_image = image
     return new_image
+
+
+def norm_img(image, data_format=None):
+    image = image/127.5 - 1.
+    if data_format:
+        image = to_nhwc(image, data_format)
+    return image
 
 
 def init_subgraph(subgraph_name, type_):

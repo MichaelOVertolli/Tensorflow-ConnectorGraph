@@ -240,6 +240,10 @@ class ConnectorGraph(object):
             return results[0]
 
 
+    def get_feed_dict(self, data_loader, config, sess):
+        raise NotImplementedError('get_feed_dict must be overridden in ConnectorGraph construction.')
+
+
     def print_subgraphs(self):
         for subgraph in self.subgraphs.values():
             print subgraph

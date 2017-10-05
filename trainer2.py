@@ -18,6 +18,7 @@ SUMMARY = 'summary'
 
 class Trainer(object):
     def __init__(self, model_name, model_type, config, log_folder, data_loader):
+        self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
         self.log_dir = os.path.join(LOGS_DIR, log_folder)
         self.data_loader = data_loader
@@ -61,17 +62,22 @@ class Trainer(object):
 
 
     def train(self):
-        z_fixed = np.random.uniform(-1, 1, size=(self.batch_size), self.z_num)
+        z_fixed = np.random.uniform(-1, 1, size=(self.batch_size, self.z_num))
         x_fixed = self.get_image_from_loader()
         save_image(x_fixed, '{}/x_fixed.png'.format(self.log_dir))
 
         for step in trange(self.start_step, self.max_step):
+
+            feed_dict = self.c_graph.get_feed_dict(self.data_loader,
+                                                   self.config,
+                                                   self.sess)
+            
             fetch_dict = dict([_ for _ in self.output_fdict.items()])
 
             if step % self.log_step == 0:
                 fetch_dict.update(dict([_ for _ in self.interim_fdict.items()]))
 
-            result = self.sess.run(fetch_dict)
+            result = self.sess.run(fetch_dict, feed_dict)
 
             if step % self.log_step == 0:
                 self.summary_writer.add_summary(result[self.summary_name], step)
@@ -97,3 +103,5 @@ class Trainer(object):
         if self.data_format == 'NCHW':
             x = x.transpose([0, 2, 3, 1])
         return x
+
+
