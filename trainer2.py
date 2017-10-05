@@ -46,7 +46,7 @@ class Trainer(object):
             self.saver = tf.train.Saver()
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
 
-            
+            print('Before SV init')
             sv = tf.train.Supervisor(logdir=self.log_dir,
                                      is_chief=True,
                                      saver=self.saver,
@@ -55,12 +55,13 @@ class Trainer(object):
                                      save_model_secs=1200,
                                      global_step=self.step,
                                      ready_for_local_init_op=None)
-
+            print('After SV init')
             gpu_options = tf.GPUOptions(allow_growth=True)
             sess_config = tf.ConfigProto(allow_soft_placement=True,
                                          gpu_options=gpu_options)
             
             self.sess = sv.prepare_or_wait_for_session(config=sess_config)
+            print('After sess init')
 
 
     def train(self):
