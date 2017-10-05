@@ -7,7 +7,6 @@ def config():
 
     config.use_gpu = True
 
-    config.data_dir = './data/CelebA'
     config.data_format = 'NCHW'
 
     config.max_step = 100

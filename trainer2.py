@@ -1,3 +1,4 @@
+from data_loader import get_loader
 import os
 from importlib import import_module
 import numpy as np
@@ -10,6 +11,7 @@ CONFIG_FILE = 'models.{}.config'
 GRAPH_FILE = 'models.{}.graph'
 MODEL_DIR = './models/'
 LOGS_DIR = './logs/'
+DATA_DIR = './data/'
 OUTPUTS = 'outputs'
 INTERIM = 'outputs_interim'
 LR = 'outputs_lr'
@@ -18,20 +20,26 @@ STEP = 'step'
 
 
 class Trainer(object):
-    def __init__(self, model_name, model_type, config, log_folder, data_loader):
+    def __init__(self, model_name, model_type, config, log_folder,
+                 data_name='CelebA', run_type='train'):
         self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
         self.log_dir = os.path.join(LOGS_DIR, log_folder)
-        self.data_loader = data_loader
+        self.data_dir = os.path.join(DATA_DIR, data_name)
 
         self.max_step = config.max_step
         self.start_step = config.start_step
         self.save_step = config.save_step
         self.log_step = config.log_step
         self.lr_update_step = config.lr_update_step
-        self.batch_size = config.batch_size
+
         self.z_num = config.z_num
+        self.batch_size = config.batch_size
+        self.img_size = config.img_size
+        
+        self.data_format = config.data_format
         self.use_gpu = config.use_gpu
+        self.run_type = run_type
 
         config = import_module(CONFIG_FILE.format(model_name))
         graph = import_module(GRAPH_FILE.format(model_name))
@@ -43,6 +51,11 @@ class Trainer(object):
         self.step = self.c_graph.graph.get_collection(STEP)[0] #should always be a single step variable
         
         with self.c_graph.graph.as_default():
+            self.data_loader = get_loader(self.data_dir,
+                                          self.batch_size,
+                                          self.img_size,
+                                          self.data_format,
+                                          self.run_type)
             self.saver = tf.train.Saver()
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
 
@@ -63,6 +76,10 @@ class Trainer(object):
             self.sess = sv.prepare_or_wait_for_session(config=sess_config)
             print('After sess init')
 
+
+    def set_data_loader(self, data_loader):
+        
+            
 
     def train(self):
         z_fixed = np.random.uniform(-1, 1, size=(self.batch_size, self.z_num))
