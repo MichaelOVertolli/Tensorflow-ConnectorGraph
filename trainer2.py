@@ -14,6 +14,7 @@ OUTPUTS = 'outputs'
 INTERIM = 'outputs_interim'
 LR = 'outputs_lr'
 SUMMARY = 'summary'
+STEP = 'step'
 
 
 class Trainer(object):
@@ -39,11 +40,12 @@ class Trainer(object):
         self.output_fdict = dict([(var.name, var) for var in self.c_graph.graph.get_collection(OUTPUTS)])
         self.interim_fdict = dict([(var.name, var) for var in self.c_graph.graph.get_collection(INTERIM)])
         self.summary_name = self.c_graph.graph.get_collection(SUMMARY)[0] #should always be a single merge summary
+        self.step = self.c_graph.graph.get_collection(STEP)[0] #should always be a single step variable
         
         with self.c_graph.graph.as_default():
             self.saver = tf.train.Saver()
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
-            self.step = tf.Variable(0, name='step', trainable=False)
+
             
             sv = tf.train.Supervisor(logdir=self.log_dir,
                                      is_chief=True,

@@ -124,6 +124,9 @@ def build_graph(config):
                 tf.summary.scalar('misc/balance', balance),
             ])
 
+        step = tf.Variable(0, name='step', trainable=False)
+        tf.add_to_collection('step', step)
+        
         sess.graph.clear_collection('outputs')
         tf.add_to_collection('outputs_interim', d_out)
         tf.add_to_collection('outputs_interim', g_loss)
