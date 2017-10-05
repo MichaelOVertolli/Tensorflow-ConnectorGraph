@@ -61,7 +61,7 @@ class Trainer(object):
 
 
     def train(self):
-        z_fixed = np.random.uniform(-1, 1, size=(self.batch_size), self.z_num)
+        z_fixed = np.random.uniform(-1, 1, size=(self.batch_size, self.z_num))
         x_fixed = self.get_image_from_loader()
         save_image(x_fixed, '{}/x_fixed.png'.format(self.log_dir))
 
