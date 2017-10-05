@@ -20,8 +20,7 @@ class SubGraph(object):
             self.outputs[tensor.name] = tensor
         self.input_names = self.inputs.keys()
         self.output_names = self.outputs.keys()
-        self.collections = [key for key in self.graph.get_all_collection_keys()
-                            if key != 'inputs' and key != 'outputs']
+        self.collections = [key for key in self.graph.get_all_collection_keys()]
 
     def __eq__(self, other):
         try:

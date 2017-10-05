@@ -128,6 +128,7 @@ def build_graph(config):
         tf.add_to_collection('outputs_interim', d_out)
         tf.add_to_collection('outputs_interim', g_loss)
         tf.add_to_collection('outputs_interim', k_t)
+        tf.add_to_collection('outputs_interim', summary_op)
         tf.add_to_collection('outputs', k_update)
         tf.add_to_collection('outputs', measure)
         tf.add_to_collection('outputs_lr', g_lr_update)
