@@ -7,6 +7,8 @@ def config():
 
     config.use_gpu = True
 
+    config.data_dir = './data/CelebA'
+
     config.max_step = 100
     config.start_step = 0
     config.save_step = 5000
@@ -14,6 +16,7 @@ def config():
     config.lr_update_step = 100000
 
     config.batch_size = 16
+    config.img_size = 64
     config.z_num = 128
 
     return config
