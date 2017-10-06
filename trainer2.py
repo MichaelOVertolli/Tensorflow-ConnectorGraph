@@ -75,10 +75,6 @@ class Trainer(object):
             
             self.sess = sv.prepare_or_wait_for_session(config=sess_config)
             print('After sess init')
-
-
-    def set_data_loader(self, data_loader):
-        pass
             
 
     def train(self):

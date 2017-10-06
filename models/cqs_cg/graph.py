@@ -1,9 +1,10 @@
-import tensorflow as tf
-import os
 from ..connectorgraph import ConnectorGraph
-from ..subgraph import BuiltSubGraph, SubGraph
-from ..errors import FirstInitialization
 from ..data_loader import get_loader
+from ..errors import FirstInitialization
+import numpy as np
+import os
+from ..subgraph import BuiltSubGraph, SubGraph
+import tensorflow as tf
 
 
 #Models
@@ -145,7 +146,7 @@ def build_graph(config):
             # x = norm_img(x)
             x = sess.run(x)
             x = norm_img(x) #running numpy version so don't have to modify graph
-            z = tf.random_uniform((config.batch_size, config.z_num), minval=-1.0, maxval=1.0)
+            z = np.random.uniform(-1, 1, size=(config.batch_size, config.z_num))
 
             feed_dict = {GENR+INPT: z, 
                          CNCT+D_IN: x,
