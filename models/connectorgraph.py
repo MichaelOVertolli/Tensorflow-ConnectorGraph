@@ -4,6 +4,7 @@ from errors import SessionGraphError, GraphNotConnectedError
 from errors import NoVariableExistsError, MultipleVariablesExistError
 from subgraph import SubGraph
 import tensorflow as tf
+from types import MethodType
 
 
 class ConnectorGraph(object):

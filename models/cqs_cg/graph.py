@@ -4,7 +4,7 @@ from ..connectorgraph import ConnectorGraph
 from ..subgraph import BuiltSubGraph, SubGraph
 from ..errors import FirstInitialization
 from ..data_loader import get_loader
-from types import MethodType
+
 
 #Models
 GENR = 'cqs_generator_0'
