@@ -142,8 +142,9 @@ def build_graph(config):
 
         def get_feed_dict(self, data_loader, config, sess):
             x = data_loader
-            x = norm_img(x)
+            # x = norm_img(x)
             x = sess.run(x)
+            x = norm_img(x) #running numpy version so don't have to modify graph
             z = tf.random_uniform((config.batch_size, config.z_num), minval=-1.0, maxval=1.0)
 
             feed_dict = {GENR+INPT: z, 
@@ -171,10 +172,26 @@ def to_nhwc(image, data_format):
     return new_image
 
 
+def to_nhwc_numpy(image, data_format):
+    if data_format == 'NCHW':
+        new_image = image.transpose([0, 3, 1, 2])
+    else:
+        new_image = image
+    return new_image
+
+
+def to_nchw_numpy(image):
+    if image.shape[3] in [1, 3]:
+        new_image = image.transpose([0, 3, 1, 2])
+    else:
+        new_image = image
+    return new_image
+
+
 def norm_img(image, data_format=None):
     image = image/127.5 - 1.
     if data_format:
-        image = to_nhwc(image, data_format)
+        image = to_nhwc_numpy(image, data_format)
     return image
 
 
