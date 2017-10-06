@@ -78,7 +78,7 @@ class Trainer(object):
 
 
     def set_data_loader(self, data_loader):
-        
+        pass
             
 
     def train(self):
