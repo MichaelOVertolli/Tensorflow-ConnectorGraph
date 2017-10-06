@@ -244,6 +244,13 @@ class ConnectorGraph(object):
         raise NotImplementedError('get_feed_dict must be overridden in ConnectorGraph construction.')
 
 
+    def attach_feed_dict_func(self, func):
+        if callable(func):
+            self.get_feed_dict = MethodType(func, self)
+        else:
+            raise TypeError('{} cannot be attached. Must be a callable type.'.format(func))
+
+
     def print_subgraphs(self):
         for subgraph in self.subgraphs.values():
             print subgraph
