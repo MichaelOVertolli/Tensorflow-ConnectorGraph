@@ -239,24 +239,9 @@ class ConnectorGraph(object):
         return subgraphs
 
 
-    def get_all_variables(self):
-        try:
-            self.graph
-        except AttributeError:
-            raise GraphNotConnectedError('The graph has not be connected yet.')
-        else:
-            try:
-                self._all_variables
-            except AttributeError:
-                self._all_variables = []
-                for k in self.graph.get_all_collection_keys():
-                    if k == 'variables' or '/variables' in k:
-                        self._all_variables.extend(self.graph.get_collection(k))
-            return self._all_variables
-
 
     def get_variable(self, variable_name):
-        results = [var for var in self.get_all_variables() if variable_name == var.name]
+        results = [var for var in self.graph.get_collection('variables') if variable_name == var.name]
         if len(results) == 0:
             raise NoVariableExistsError('{} does not exist.'.format(variable_name))
         elif len(results) > 1:
