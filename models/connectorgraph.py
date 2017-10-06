@@ -221,14 +221,19 @@ class ConnectorGraph(object):
 
 
     def get_all_variables(self):
-        if self.graph is None:
+        try:
+            self.graph
+        except AttributeError:
             raise GraphNotConnectedError('The graph has not be connected yet.')
-        elif self._all_variables is None:
-            self._all_variables = []
-            for k in self.graph.get_all_collection_keys():
-                if k == 'variables' or '/variables' in k:
-                    self._all_variables.extend(self.graph.get_collection(k))
-        return self._all_variables
+        else:
+            try:
+                self._all_variables
+            except AttributeError:
+                self._all_variables = []
+                for k in self.graph.get_all_collection_keys():
+                    if k == 'variables' or '/variables' in k:
+                        self._all_variables.extend(self.graph.get_collection(k))
+            return self._all_variables
 
 
     def get_variable(self, variable_name):
