@@ -7,6 +7,11 @@ import tensorflow as tf
 from types import MethodType
 
 
+VARS = '/variables'
+MODEL_VARS = '/model_variables'
+TRAIN_VARS = '/trainable_variables'
+
+
 class ConnectorGraph(object):
 
     def __init__(self):
@@ -49,6 +54,7 @@ class ConnectorGraph(object):
             tf.add_to_collection('inputs', sess.graph.get_tensor_by_name(inpt))
         for output in outputs:
             tf.add_to_collection('outputs', sess.graph.get_tensor_by_name(output))
+        self.aggregate_var_collections(sess)
         #TODO: if going to preserve graph, then should have error checking
         #      when collections are modified, which invalidates graph state 
         self.graph = sess.graph
@@ -75,6 +81,19 @@ class ConnectorGraph(object):
             # for tensor in tensors:
             #     tf.add_to_collection(name, tensor)
 
+
+    def aggregate_var_collections(self, sess):
+        for c in sess.graph.get_all_collection_keys():
+            if VARS in c:
+                for v in sess.graph.get_collection(c):
+                    sess.graph.add_to_collection(VARS[1:], v)
+            elif MODEL_VARS in c:
+                for v in sess.graph.get_collection(c):
+                    sess.graph.add_to_collection(MODEL_VARS[1:], v)
+            elif TRAIN_VARS in c:
+                for v in sess.graph.get_collection(c):
+                    sess.graph.add_to_collection(TRAIN_VARS[1:], v)
+            
 
     def add_subgraph(self, subgraph):
         self.subgraphs[subgraph.name] = subgraph
