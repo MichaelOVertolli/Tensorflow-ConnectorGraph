@@ -15,7 +15,7 @@ The models folder comes with 5 SubGraphs that construct the [BEGAN Tensorflow mo
 ![Generator output](./assets/195000_G.png)
 
 ### Interpolations
-![Generator interpolations](./assets/19500_interp_G.png)
+![Generator interpolations](./assets/195000_interp_G.png)
 
 This code was originally forked and built off of the [BEGAN Tensorflow model](https://github.com/carpedm20/BEGAN-tensorflow). The ConnectorGraph framework was inspired by my own work building on [Taehoon Kim's](http://carpedm20.github.io) original code.
 
