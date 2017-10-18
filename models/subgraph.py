@@ -42,7 +42,7 @@ DIR = './models/'
 
 
 class BuiltSubGraph(SubGraph):
-    def __init__(self, model_name, config_type, session):
+    def __init__(self, model_name, config_type, session, log_dir=None):
         """Initializes a SubGraph object from model name and a session object.
 
         Arguments:
@@ -53,6 +53,7 @@ class BuiltSubGraph(SubGraph):
         """
         if session.graph.version != 0:
             raise SessionGraphError('The session graph must be empty.')
+        self.log_dir = log_dir
         if self.graph_is_built(model_name, config_type):
             self.restore(model_name, config_type, session)
             super(BuiltSubGraph, self).__init__(model_name, config_type, session.graph)
@@ -81,12 +82,13 @@ class BuiltSubGraph(SubGraph):
         return '_'.join(model_name.split('_')[:-1]) #strips the index (_#) off of the model name
 
     
-    def restore(self, model_name, config_type, sess, input_map=None, log_dir=None):
+    def restore(self, model_name, config_type, sess, input_map=None):
         self.saver = tf.train.import_meta_graph(os.path.join(self.path,
                                                              META.format(config_type)),
+                                                clear_devices=True,
                                                 import_scope=model_name,
                                                 input_map=input_map)
-        if log_dir is None:
+        if self.log_dir is None:
             self.saver.restore(sess, os.path.join(self.path, GRAPH.format(config_type)))
         else:
             self.saver = tf.train.Saver(sess.graph.get_collection('variables'))

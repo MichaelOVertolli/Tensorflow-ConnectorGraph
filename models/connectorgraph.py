@@ -2,6 +2,8 @@ from errors import MissingSubgraphError, MissingTensorError, MissingConnectionEr
 from errors import ConnectionConflictError, ExhaustedGraphStepsError
 from errors import SessionGraphError, GraphNotConnectedError
 from errors import NoVariableExistsError, MultipleVariablesExistError
+from errors import NoSaversError
+import os
 from subgraph import SubGraph
 import tensorflow as tf
 from types import MethodType
@@ -239,7 +241,6 @@ class ConnectorGraph(object):
         return subgraphs
 
 
-
     def get_variable(self, variable_name):
         results = [var for var in self.graph.get_collection('variables') if variable_name == var.name]
         if len(results) == 0:
@@ -250,13 +251,22 @@ class ConnectorGraph(object):
             return results[0]
 
 
-    def get_feed_dict(self, data_loader, config, sess):
+    def get_feed_dict(self, trainer):
         raise NotImplementedError('get_feed_dict must be overridden in ConnectorGraph construction.')
 
 
-    def attach_feed_dict_func(self, func):
+    def send_outputs(self, trainer, step):
+        raise NotImplementedError('send_outputs must be overridden in ConnectorGraph construction.')
+
+
+    def attach_func(self, func):
         if callable(func):
-            self.get_feed_dict = MethodType(func, self)
+            if func.__name__ == 'get_feed_dict':
+                self.get_feed_dict = MethodType(func, self)
+            elif func.__name__ == 'send_outputs':
+                self.send_outputs = MethodType(func, self)
+            else:
+                raise AttributeError('{} does not exist or cannot be attached.'.format(func))
         else:
             raise TypeError('{} cannot be attached. Must be a callable type.'.format(func))
 
@@ -271,6 +281,21 @@ class ConnectorGraph(object):
             raise GraphNotConnectedError('There is no graph to save.')
         else:
             f = tf.summary.FileWriter(folder, self.graph)
+
+
+    def add_subgraph_savers(self, savers):
+        self.savers = savers
+
+
+    def save_subgraphs(self, logdir, step, sess):
+        if self.savers is None:
+            raise NoSaversError('There are no savers in this Connectorgraph')
+        else:
+            for subgraph, saver in self.savers.items():
+                path = os.path.join(logdir, subgraph)
+                if not os.path.isdir(path):
+                    os.makedirs(path)
+                saver.save(sess, os.path.join(path, subgraph), step)
 
     
 class Connection(object):

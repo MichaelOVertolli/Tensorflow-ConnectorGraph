@@ -5,6 +5,7 @@ import numpy as np
 import os
 from ..subgraph import BuiltSubGraph, SubGraph
 import tensorflow as tf
+from utils import save_image
 
 
 #Models
@@ -127,6 +128,14 @@ def build_graph(config):
                 tf.summary.scalar('misc/balance', balance),
             ])
 
+            #TODO: should reuse Savers from the original subgraph definitions
+            savers = {
+                GENR: tf.train.Saver(sess.graph.get_collection('/'.join([GENR, 'variables']))),
+                DISC: tf.train.Saver(sess.graph.get_collection('/'.join([DISC, 'variables'])))
+            }
+
+            conngraph.add_subgraph_savers(savers)
+
         step = tf.Variable(0, name='step', trainable=False)
         tf.add_to_collection('step', step)
         
@@ -141,24 +150,74 @@ def build_graph(config):
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
 
-        def get_feed_dict(self, data_loader, config, sess):
-            x = data_loader
+        def get_feed_dict(self, trainer):
+            x = trainer.data_loader
             # x = norm_img(x)
-            x = sess.run(x)
+            x = trainer.sess.run(x)
             x = norm_img(x) #running numpy version so don't have to modify graph
-            z = np.random.uniform(-1, 1, size=(config.batch_size, config.z_num))
+            z = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
 
             feed_dict = {GENR+INPT: z, 
                          CNCT+D_IN: x,
                          LSSD+O_IN: x}
             return feed_dict
         
-        conngraph.attach_feed_dict_func(get_feed_dict)
+        conngraph.attach_func(get_feed_dict)
+        
+        def send_outputs(self, trainer, step):
+            if not hasattr(self, 'z_fixed'):
+                self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
+                self.x_fixed = trainer.get_image_from_loader()
+                save_image(self.x_fixed, '{}/x_fixed.png'.format(trainer.log_dir))
+                self.x_fixed = norm_img(self.x_fixed)
+
+            #generate
+            x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTP),
+                                     {GENR+INPT: self.z_fixed})
+            
+            save_image(denorm_img_numpy(x_gen, trainer.data_format),
+                       '{}/{}_G.png'.format(trainer.log_dir, step))
+
+            #autoencode
+            for k, img in (('real', self.x_fixed), ('gen', x_gen)):
+                if img is None:
+                    continue
+                if img.shape[3] in [1, 3]:
+                    img = img.transpose([0, 3, 1, 2])
+                x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLT+DOUT),
+                                     {GENR+INPT: self.z_fixed,
+                                      CNCT+D_IN: img})
+                save_image(denorm_img_numpy(x, trainer.data_format),
+                           '{}/{}_D_{}.png'.format(trainer.log_dir, step, k))
+
+
+            #interpolate
+            z_flex = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
+            generated = []
+            for _, ratio in enumerate(np.linspace(0, 1, 10)):
+                z = np.stack([slerp(ratio, r1, r2) for r1, r2 in zip(self.z_fixed, z_flex)])
+                #generate
+                z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTP),
+                                            {GENR+INPT: z})
+                generated.append(denorm_img_numpy(z_decode, trainer.data_format))
+
+            generated = np.stack(generated).transpose([1, 0, 2, 3, 4])
+
+            all_img_num = np.prod(generated.shape[:2])
+            batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
+            save_image(batch_generated, '{}/{}_interp_G.png'.format(trainer.log_dir, step), nrow=10)
+
+        conngraph.attach_func(send_outputs)
         
     return conngraph
 
+
 def denorm_img(norm, data_format):
     return tf.clip_by_value(to_nhwc((norm + 1)*127.5, data_format), 0, 255)
+
+
+def denorm_img_numpy(norm, data_format):
+    return np.clip(to_nhwc_numpy((norm + 1)*127.5, data_format), 0, 255)
 
 
 def nchw_to_nhwc(x):
@@ -175,7 +234,7 @@ def to_nhwc(image, data_format):
 
 def to_nhwc_numpy(image, data_format):
     if data_format == 'NCHW':
-        new_image = image.transpose([0, 3, 1, 2])
+        new_image = image.transpose([0, 2, 3, 1])
     else:
         new_image = image
     return new_image
@@ -194,6 +253,15 @@ def norm_img(image, data_format=None):
     if data_format:
         image = to_nhwc_numpy(image, data_format)
     return image
+
+
+def slerp(val, low, high):
+    """Code from https://github.com/soumith/dcgan.torch/issues/14"""
+    omega = np.arccos(np.clip(np.dot(low/np.linalg.norm(low), high/np.linalg.norm(high)), -1, 1))
+    so = np.sin(omega)
+    if so == 0:
+        return (1.0-val) * low + val * high # L'Hopital's rule/LERP
+    return np.sin((1.0-val)*omega) / so * low + np.sin(val*omega) / so * high
 
 
 def init_subgraph(subgraph_name, type_):

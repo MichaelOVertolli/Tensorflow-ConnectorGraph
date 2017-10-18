@@ -44,6 +44,10 @@ class MultipleVariablesExistError(ConnectionError):
     pass
 
 
+class NoSaversError(ConnectionError):
+    pass
+
+
 class SessionGraphError(Error):
     pass
 

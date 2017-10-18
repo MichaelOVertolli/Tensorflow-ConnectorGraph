@@ -59,7 +59,7 @@ class Trainer(object):
             self.saver = tf.train.Saver()
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
 
-            print('Before SV init')
+            
             sv = tf.train.Supervisor(logdir=self.log_dir,
                                      is_chief=True,
                                      saver=self.saver,
@@ -68,25 +68,21 @@ class Trainer(object):
                                      save_model_secs=1200,
                                      global_step=self.step,
                                      ready_for_local_init_op=None)
-            print('After SV init')
+            
             gpu_options = tf.GPUOptions(allow_growth=True)
             sess_config = tf.ConfigProto(allow_soft_placement=True,
                                          gpu_options=gpu_options)
             
             self.sess = sv.prepare_or_wait_for_session(config=sess_config)
-            print('After sess init')
+            
             
 
     def train(self):
-        z_fixed = np.random.uniform(-1, 1, size=(self.batch_size, self.z_num))
-        x_fixed = self.get_image_from_loader()
-        save_image(x_fixed, '{}/x_fixed.png'.format(self.log_dir))
+        
 
         for step in trange(self.start_step, self.max_step):
 
-            feed_dict = self.c_graph.get_feed_dict(self.data_loader,
-                                                   self.config,
-                                                   self.sess)
+            feed_dict = self.c_graph.get_feed_dict(self)
             
             fetch_dict = dict([_ for _ in self.output_fdict.items()])
 
@@ -104,11 +100,13 @@ class Trainer(object):
                     if var == self.summary_name:
                         continue
                     else:
-                        out_str.append('{}: {.6f}'.format(var, val))
-                print('[{}/{}]'.format(step, self.max_step) + ', '.join(out_str))
+                        out_str.append('{}: {:.6f}'.format(var, val))
+                print('[{}/{}]\n'.format(step, self.max_step) + '\n'.join(out_str))
 
             #TODO: add subgraph component save
-            #TODO: save output images
+
+            if step % (self.log_step * 100) == 0:
+                self.c_graph.send_outputs(self, step)
 
             if step % self.lr_update_step == self.lr_update_step - 1:
                 self.sess.run(self.c_graph.graph.get_collection(LR))

@@ -5,6 +5,7 @@ import numpy as np
 
 #TYPES:
 Z128_SZ64 = 'z128_sz64'
+Z128_SZ64_REUSE = 'z128_sz64_reuse'
 Z256_SZ128 = 'z256_sz128'
 
 

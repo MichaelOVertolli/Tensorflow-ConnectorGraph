@@ -9,7 +9,7 @@ def config():
 
     config.data_format = 'NCHW'
 
-    config.max_step = 100
+    config.max_step = 200000
     config.start_step = 0
     config.save_step = 5000
     config.log_step = 50
