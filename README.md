@@ -12,10 +12,10 @@ ConnectorGraph adds a number of useful features to stock Tensorflow:
 The models folder comes with 5 SubGraphs that construct the [BEGAN Tensorflow model](https://github.com/carpedm20/BEGAN-tensorflow) and an extension called the [Scaled BEGAN GMSM](https://arxiv.org/abs/1708.02237) as well as the associated ConnectorGraph composition file. Below are the results of the Scaled BEGAN GMSM after training for ~200k epochs on 64X64px images from the CelebA dataset.
 
 ### Raw output
-![./assets/195000_G.png]
+![/assets/195000_G.png]
 
 ### Interpolations
-![./assets/19500_interp_G.png]
+![/assets/19500_interp_G.png]
 
 This code was originally forked and built off of the [BEGAN Tensorflow model](https://github.com/carpedm20/BEGAN-tensorflow). The ConnectorGraph framework was inspired by my own work building on [Taehoon Kim's](http://carpedm20.github.io) original code.
 
