@@ -1,20 +1,33 @@
-# BEGAN in Tensorflow
+# Tensorflow ConnectorGraph Framework
 
-Tensorflow implementation of [BEGAN: Boundary Equilibrium Generative Adversarial Networks](https://arxiv.org/abs/1703.10717).
+The ConnectorGraph Framework is an extension of Tensorflow that is designed to handle large-scale deep neural networks that are composed of multiple, reusable subnetworks (called SubGraphs).
 
-![alt tag](./assets/model.png)
+ConnectorGraph adds a number of useful features to stock Tensorflow:
+- a simplified interface for constructing large-scale, deep neural networks out of reusable components (SubGraphs)
+- a simplified interface for building reusable SubGraphs that are made of multiple Tensorflow Ops (e.g., an autoencoder)
+- a simpler framework for sharing and reusing pretrained Tensorflow neural networks with and without freezing
+- a simpler framework for incremental training routines where different parts of the network are trained and fixed before other parts of the network are trained
+- a hierarchically symmetric structure where ConnectorGraphs can be used as the SubGraphs of yet larger ConnectorGraphs
 
+The models folder comes with 5 SubGraphs that construct the [BEGAN Tensorflow model](https://github.com/carpedm20/BEGAN-tensorflow) and an extension called the [Scaled BEGAN GMSM](https://arxiv.org/abs/1708.02237) as well as the associated ConnectorGraph composition file. Below are the results of the Scaled BEGAN GMSM after training for ~200k epochs on 64X64px images from the CelebA dataset.
+
+### Raw output
+![./assets/195000_G.png]
+
+### Interpolations
+![./assets/19500_interp_G.png]
+
+This code was originally forked and built off of the [BEGAN Tensorflow model](https://github.com/carpedm20/BEGAN-tensorflow). The ConnectorGraph framework was inspired by my own work building on [Taehoon Kim's](http://carpedm20.github.io) original code.
 
 ## Requirements
 
 - Python 2.7
 - [Pillow](https://pillow.readthedocs.io/en/4.0.x/)
 - [tqdm](https://github.com/tqdm/tqdm)
-- [requests](https://github.com/kennethreitz/requests) (Only used for downloading CelebA dataset)
 - [TensorFlow 1.1.0](https://github.com/tensorflow/tensorflow) (**Need nightly build** which can be found in [here](https://github.com/tensorflow/tensorflow#installation), if not you'll see `ValueError: 'image' must be three-dimensional.`)
 
 
-## Usage
+## Usage (to train)
 
 First download [CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) datasets with:
 
@@ -30,55 +43,17 @@ or you can use your own dataset by placing images like:
         ├── yyy.jpg
         └── ...
 
-To train a model:
+For the original BEGAN model, edit the `LSS_TYPE` in `models/cqs_cg/graph.py` to `'began'`
 
-    $ python main.py --dataset=CelebA --use_gpu=True
-    $ python main.py --dataset=YOUR_DATASET_NAME --use_gpu=True
-
-To test a model (use your `load_path`):
-
-    $ python main.py --dataset=CelebA --load_path=CelebA_0405_124806 --use_gpu=True --is_train=False --split valid
+Then, in a python interpreter import miain from main.py and run it.
 
 
-## Results
-
-### Generator output (64x64) with `gamma=0.5` after 300k steps
-
-![all_G_z0_64x64](./assets/all_G_z0_64x64.png)
-
-
-### Generator output (128x128) with `gamma=0.5` after 200k steps
-
-![all_G_z0_64x64](./assets/all_G_z0_128x128.png)
-
-
-### Interpolation of Generator output (64x64) with `gamma=0.5` after 300k steps
-
-![interp_G0_64x64](./assets/interp_G0_64x64.png)
-
-
-### Interpolation of Generator output (128x128) with `gamma=0.5` after 200k steps
-
-![interp_G0_128x128](./assets/interp_G0_128x128.png)
-
-    
-### Interpolation of Discriminator output of real images
-    
-![alt tag](./assets/AE_batch.png)   
-![alt tag](./assets/interp_1.png)   
-![alt tag](./assets/interp_2.png)   
-![alt tag](./assets/interp_3.png)   
-![alt tag](./assets/interp_4.png)   
-![alt tag](./assets/interp_5.png)   
-![alt tag](./assets/interp_6.png)   
-![alt tag](./assets/interp_7.png)   
-![alt tag](./assets/interp_8.png)   
-![alt tag](./assets/interp_9.png)   
-![alt tag](./assets/interp_10.png)
-
+...More details to come...
 
 ## Related works
 
+- [Paper for Scaled BEGAN GMSM](https://arxiv.org/abs/1708.02237)
+- [BEGAN-tensorflow](https://github.com/carpedm20/BEGAN-tensorflow)
 - [DCGAN-tensorflow](https://github.com/carpedm20/DCGAN-tensorflow)
 - [DiscoGAN-pytorch](https://github.com/carpedm20/DiscoGAN-pytorch)
 - [simulated-unsupervised-tensorflow](https://github.com/carpedm20/simulated-unsupervised-tensorflow)
@@ -86,4 +61,4 @@ To test a model (use your `load_path`):
 
 ## Author
 
-Taehoon Kim / [@carpedm20](http://carpedm20.github.io)
+Michael O. Vertolli / [@MichaelOVertolli](www.theworldmatrix.ca)
