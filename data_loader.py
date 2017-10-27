@@ -6,13 +6,13 @@ from nriqa import toyiq
 
 def get_loader(root, batch_size, scale_size, data_format, split=None, is_grayscale=False, seed=None):
     dataset_name = os.path.basename(root)
-    if dataset_name in ['CelebA'] and split:
+    if dataset_name in ['CelebA', 'lsun', 'imgnet'] and split:
         root = os.path.join(root, 'splits', split)
 
-    for ext in ["jpg", "png"]:
+    for ext in ["jpg", "JPEG", "png"]:
         paths = glob("{}/*.{}".format(root, ext))
 
-        if ext == "jpg":
+        if ext == "jpg" or ext == "JPEG":
             tf_decode = tf.image.decode_jpeg
         elif ext == "png":
             tf_decode = tf.image.decode_png
