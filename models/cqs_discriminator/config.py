@@ -6,6 +6,7 @@ import numpy as np
 #TYPES:
 Z128_SZ64 = 'z128_sz64'
 Z128_SZ64_REUSE = 'z128_sz64_reuse'
+Z1024_SZ64 = 'z1024_sz64'
 Z256_SZ128 = 'z256_sz128'
 
 
@@ -26,6 +27,11 @@ def config(type_):
         config.size = 64
         config.repeat_num = int(np.log2(config.size)) - 2
         config.reuse = True
+    elif type_ == Z1024_SZ64:
+        config.z_num = 1024
+        config.size = 64
+        config.repeat_num = int(np.log2(config.size)) - 2
+        config.reuse = False
     elif type_ == Z256_SZ128:
         config.z_num = 256
         config.size = 128

@@ -3,9 +3,10 @@ from trainer_config import config
 import tensorflow as tf
 
 
-def main(train=True, save_subgraphs=False):
-    t = Trainer('cqs_cg', 'g_0.5', config(),
-                'cqs_cg_imgnet_BEGAN', 'imgnet')
+def main(model='cqs_cg', type_='began_b16_z1024_sz64_g0.5',
+         log_folder=None, train=True, save_subgraphs=False):
+    t = Trainer(model, type_, config(),
+                log_folder, 'imgnet')
     if train:
         step = t.train()
     if save_subgraphs:

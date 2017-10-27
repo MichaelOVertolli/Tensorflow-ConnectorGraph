@@ -17,10 +17,6 @@ CNCT = 'cqs_concat_0'
 SPLT = 'cqs_split_0'
 CQST = 'cqs_train'
 
-#Type variables
-MDL_TYPE = 'z128_sz64'
-LSS_TYPE = 'began'
-
 #Inputs
 INPT = '/input:0'
 G_IN = '/gen_input:0'
@@ -60,14 +56,14 @@ outputs = [
 
 def build_graph(config):
     #TODO: fix partial loading of saved variables from this model into partial models
-    generator = init_subgraph(GENR, MDL_TYPE)
-    discriminator = init_subgraph(DISC, MDL_TYPE)
-    disc_loss_set = init_subgraph(LSSD, LSS_TYPE)
-    gen_loss_set = init_subgraph(LSSG, LSS_TYPE)
+    generator = init_subgraph(GENR, config.mdl_type)
+    discriminator = init_subgraph(DISC, config.mdl_type)
+    disc_loss_set = init_subgraph(LSSD, config.lss_type)
+    gen_loss_set = init_subgraph(LSSG, config.lss_type)
     concat_op = init_subgraph(CNCT, '')
     split_op = init_subgraph(SPLT, '')
 
-    conngraph = ConnectorGraph()
+    conngraph = ConnectorGraph(config)
     conngraph.add_subgraph(generator)
     conngraph.add_subgraph(discriminator)
     conngraph.add_subgraph(gen_loss_set)

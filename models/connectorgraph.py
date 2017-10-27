@@ -16,12 +16,13 @@ TRAIN_VARS = '/trainable_variables'
 
 class ConnectorGraph(object):
 
-    def __init__(self):
+    def __init__(self, config):
         self._MAX_GRAPH_STEPS = 10000 #sanity constant for maximum depth of the graph
                                       #helpful for cycle check
         self.subgraphs = {}
         #connections are fromgraph_fromtensor_tograph_totensor: Connection()
         self.connections = {}
+        self.config = config
 
 
     def connect_graph(self, inputs, outputs, sess):

@@ -15,9 +15,5 @@ def config():
     config.log_step = 50
     config.lr_update_step = 100000
 
-    config.batch_size = 16
-    config.img_size = 64
-    config.z_num = 128
-
     return config
 

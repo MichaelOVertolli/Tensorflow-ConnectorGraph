@@ -1,3 +1,4 @@
+from datetime import datetime
 from data_loader import get_loader
 import os
 from importlib import import_module
@@ -20,11 +21,15 @@ STEP = 'step'
 
 
 class Trainer(object):
-    def __init__(self, model_name, model_type, config, log_folder,
+    def __init__(self, model_name, model_type, config, log_folder=None,
                  data_name='CelebA', run_type='train'):
         self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
+        if log_folder is None:
+            log_folder = '_'.join([model_name, model_type, get_time()])
         self.log_dir = os.path.join(LOGS_DIR, log_folder)
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
         self.data_dir = os.path.join(DATA_DIR, data_name)
 
         self.max_step = config.max_step
@@ -32,10 +37,6 @@ class Trainer(object):
         self.save_step = config.save_step
         self.log_step = config.log_step
         self.lr_update_step = config.lr_update_step
-
-        self.z_num = config.z_num
-        self.batch_size = config.batch_size
-        self.img_size = config.img_size
         
         self.data_format = config.data_format
         self.use_gpu = config.use_gpu
@@ -49,6 +50,10 @@ class Trainer(object):
         self.interim_fdict = dict([(var.name, var) for var in self.c_graph.graph.get_collection(INTERIM)])
         self.summary_name = self.c_graph.graph.get_collection(SUMMARY)[0].name #should always be a single merge summary
         self.step = self.c_graph.graph.get_collection(STEP)[0] #should always be a single step variable
+
+        self.z_num = self.c_graph.config.z_num
+        self.batch_size = self.c_graph.config.batch_size
+        self.img_size = self.c_graph.config.img_size
         
         with self.c_graph.graph.as_default():
             self.data_loader = get_loader(self.data_dir,
@@ -117,4 +122,7 @@ class Trainer(object):
             x = x.transpose([0, 2, 3, 1])
         return x
 
+
+def get_time():
+    return datetime.now().strftime("%m%d_%H%M%S")
 
