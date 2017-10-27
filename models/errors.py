@@ -58,3 +58,7 @@ class SubGraphError(Error):
 
 class FirstInitialization(SubGraphError):
     pass
+
+
+class InvalidSubGraphError(SubGraphError):
+    pass

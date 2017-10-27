@@ -4,8 +4,8 @@ import tensorflow as tf
 
 
 def main(train=True, save_subgraphs=False):
-    t = Trainer('cqs_cg', '', config(),
-                'cqs_cg')
+    t = Trainer('cqs_cg', 'g_0.5', config(),
+                'cqs_cg_imgnet_BEGAN', 'imgnet')
     if train:
         step = t.train()
     if save_subgraphs:

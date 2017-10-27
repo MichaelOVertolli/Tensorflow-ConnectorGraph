@@ -19,7 +19,7 @@ CQST = 'cqs_train'
 
 #Type variables
 MDL_TYPE = 'z128_sz64'
-LSS_TYPE = 'scaled_began_gmsm'
+LSS_TYPE = 'began'
 
 #Inputs
 INPT = '/input:0'

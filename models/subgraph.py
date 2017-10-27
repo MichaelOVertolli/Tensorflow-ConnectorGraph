@@ -52,6 +52,7 @@ META = 'graph_{}.meta'
 DIR = './models/'
 CHKPNT = 'checkpoint'
 
+
 class BuiltSubGraph(SubGraph):
     def __init__(self, model_name, config_type, session, log_dir=None):
         """Initializes a SubGraph object from model name and a session object.
@@ -140,7 +141,6 @@ class FrozenSubGraph(SubGraph):
         tf.import_graph_def(self.frozen_graph_def,
                             input_map=input_map,
                             name=model_name)
-
 
     def copy(self, new_name):
         return FrozenSubGraph(new_name, self.config_type, self.frozen_graph_def)
