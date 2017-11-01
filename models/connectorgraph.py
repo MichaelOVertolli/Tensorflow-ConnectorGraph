@@ -37,7 +37,8 @@ class ConnectorGraph(object):
             except IndexError:
                 break
             subgraph = self.subgraphs[subgraph_name]
-            subgraph.restore(subgraph_name, subgraph.config_type, sess, self.input_maps[subgraph_name])
+            subgraph.restore(subgraph_name, subgraph.config_type, sess,
+                             self.input_maps[subgraph_name])
             self.rename_collections(subgraph, sess)
             processed[subgraph_name] = True
             forward_conn = self.get_forward_connections(subgraph_name)
@@ -47,7 +48,7 @@ class ConnectorGraph(object):
                     self.input_maps[conn.to_graph] = self.build_input_map(sess.graph, [conn], self.input_maps[conn.to_graph])
                     completed_back_conns = [processed[c.from_graph]
                                             for c in self.get_back_connections(conn.to_graph)]
-                    if all(completed_back_conns):
+                    if all(completed_back_conns) and conn.to_graph not in pending:
                         #guarantees that only subgraphs that have all their
                         #back connections already processed get added to pending list
                         pending.append(conn.to_graph) 
@@ -242,6 +243,10 @@ class ConnectorGraph(object):
         return subgraphs
 
 
+    def tensors_to_names(self, tensors):
+        return [t.name for t in tensors]
+
+
     def get_variable(self, variable_name):
         results = [var for var in self.graph.get_collection('variables') if variable_name == var.name]
         if len(results) == 0:
@@ -250,6 +255,13 @@ class ConnectorGraph(object):
             raise MultipleVariablesExistError('{} matches multiple variables.'.format(variable_name))
         else:
             return results[0]
+
+
+    def get_all_variables(self, variable_names):
+        variables = []
+        for n in variable_names:
+            variables.append(self.get_variable(n))
+        return variables
 
 
     def get_feed_dict(self, trainer):

@@ -51,6 +51,7 @@ GRAPH = 'graph_{}'
 META = 'graph_{}.meta'
 DIR = './models/'
 CHKPNT = 'checkpoint'
+REUSE = '_reuse'
 
 
 class BuiltSubGraph(SubGraph):
@@ -65,6 +66,8 @@ class BuiltSubGraph(SubGraph):
         """
         if session.graph.version != 0:
             raise SessionGraphError('The session graph must be empty.')
+        if REUSE in model_name:
+            raise InvalidNameError("'{}' restricted internal naming scheme.".format(REUSE))
         self.log_dir = log_dir
         if self.log_dir is not None:
             with open(os.path.join(self.log_dir, CHKPNT)) as f:
@@ -99,7 +102,7 @@ class BuiltSubGraph(SubGraph):
     def get_module_name(self, model_name):
         return '_'.join(model_name.split('_')[:-1]) #strips the index (_#) off of the model name
 
-    
+
     def restore(self, model_name, config_type, sess, input_map=None):
         self.saver = tf.train.import_meta_graph(os.path.join(self.path,
                                                              META.format(config_type)),
@@ -123,8 +126,13 @@ class BuiltSubGraph(SubGraph):
             self.strip_names(self.output_names))
         #assume this is only ever used to initialize a FrozenSubGraph
         #so we can set the name parameter to 0
-        return FrozenSubGraph('frozen_{}_0'.format(self.get_module_name(self.name)),
-                              self.config_type, frozen_graph_def)
+        name = 'frozen_{}_0'.format(self.get_module_name(self.name))
+        frozen = FrozenSubGraph(name, self.config_type, frozen_graph_def,
+                                ['/'.join([name, tensor_name])
+                                 for tensor_name in self.input_names],
+                                ['/'.join([name, tensor_name])
+                                 for tensor_name in self.output_names])
+        return frozen
 
 
     def strip_names(self, names):
@@ -132,9 +140,11 @@ class BuiltSubGraph(SubGraph):
 
 
 class FrozenSubGraph(SubGraph):
-    def __init__(self, model_name, config_type, frozen_graph_def):
+    def __init__(self, model_name, config_type, frozen_graph_def, inpts, outpts):
         super(FrozenSubGraph, self).__init__(model_name, config_type, tf.Graph())
         self.frozen_graph_def = frozen_graph_def
+        self.input_names = inpts
+        self.output_names = outpts
 
 
     def restore(self, model_name, config_type, sess, input_map=None):
@@ -143,4 +153,13 @@ class FrozenSubGraph(SubGraph):
                             name=model_name)
 
     def copy(self, new_name):
-        return FrozenSubGraph(new_name, self.config_type, self.frozen_graph_def)
+        return FrozenSubGraph(new_name, self.config_type,
+                              self.frozen_graph_def,
+                              [self.rename(new_name, tensor_name)
+                               for tensor_name in self.input_names],
+                              [self.rename(new_name, tensor_name)
+                               for tensor_name in self.output_names])
+
+
+    def rename(self, new_name, tensor_name):
+        return '/'.join([new_name]+tensor_name.split('/')[1:])

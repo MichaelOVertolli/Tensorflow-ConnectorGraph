@@ -30,10 +30,10 @@ def config(type_):
         config.gamma = 0.7
     else:
         raise ConfigError('Invalid config type {} for gamma.'.format(type_))
-    if BEGAN in type_:
-        config.lss_type = BEGAN
-    elif SCALED_BEGAN_GMSM in type_:
+    if SCALED_BEGAN_GMSM in type_:
         config.lss_type = SCALED_BEGAN_GMSM
+    elif BEGAN in type_:
+        config.lss_type = BEGAN
     else:
         raise ConfigError('Invalid config type {} for lss_type.'.format(type_))
     if Z128_SZ64 in type_:
