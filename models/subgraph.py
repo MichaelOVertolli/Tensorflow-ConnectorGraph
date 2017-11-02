@@ -51,7 +51,6 @@ GRAPH = 'graph_{}'
 META = 'graph_{}.meta'
 DIR = './models/'
 CHKPNT = 'checkpoint'
-REUSE = '_reuse'
 
 
 class BuiltSubGraph(SubGraph):
@@ -66,8 +65,6 @@ class BuiltSubGraph(SubGraph):
         """
         if session.graph.version != 0:
             raise SessionGraphError('The session graph must be empty.')
-        if REUSE in model_name:
-            raise InvalidNameError("'{}' restricted internal naming scheme.".format(REUSE))
         self.log_dir = log_dir
         if self.log_dir is not None:
             with open(os.path.join(self.log_dir, CHKPNT)) as f:

@@ -1,11 +1,10 @@
 from ..connectorgraph import ConnectorGraph
-from ..data_loader import get_loader
 from ..errors import FirstInitialization
 import numpy as np
 import os
 from ..subgraph import BuiltSubGraph, SubGraph
 import tensorflow as tf
-from utils import save_image
+from ..model_utils import *
 
 
 #Models
@@ -164,7 +163,7 @@ def build_graph(config):
             if not hasattr(self, 'z_fixed'):
                 self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
                 self.x_fixed = trainer.get_image_from_loader()
-                save_image(self.x_fixed, '{}/x_fixed.png'.format(trainer.log_dir))
+                save_image(self.x_fixed, os.path.join(trainer.log_dir, 'x_fixed.png'))
                 self.x_fixed = norm_img(self.x_fixed)
 
             #generate
@@ -172,7 +171,7 @@ def build_graph(config):
                                      {GENR+INPT: self.z_fixed})
             
             save_image(denorm_img_numpy(x_gen, trainer.data_format),
-                       '{}/{}_G.png'.format(trainer.log_dir, step))
+                       os.path.join(trainer.log_dir, '{}_G.png'.format(step)))
 
             #autoencode
             for k, img in (('real', self.x_fixed), ('gen', x_gen)):
@@ -184,7 +183,7 @@ def build_graph(config):
                                      {GENR+INPT: self.z_fixed,
                                       CNCT+D_IN: img})
                 save_image(denorm_img_numpy(x, trainer.data_format),
-                           '{}/{}_D_{}.png'.format(trainer.log_dir, step, k))
+                           os.path.join(trainer.log_dir, '{}_D_{}.png'.format(step, k)))
 
 
             #interpolate
@@ -201,70 +200,10 @@ def build_graph(config):
 
             all_img_num = np.prod(generated.shape[:2])
             batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
-            save_image(batch_generated, '{}/{}_interp_G.png'.format(trainer.log_dir, step), nrow=10)
+            save_image(batch_generated, os.path.join(trainer.log_dir, '{}_interp_G.png'.format(step)), nrow=10)
 
         conngraph.attach_func(send_outputs)
         
     return conngraph
 
 
-def denorm_img(norm, data_format):
-    return tf.clip_by_value(to_nhwc((norm + 1)*127.5, data_format), 0, 255)
-
-
-def denorm_img_numpy(norm, data_format):
-    return np.clip(to_nhwc_numpy((norm + 1)*127.5, data_format), 0, 255)
-
-
-def nchw_to_nhwc(x):
-    return tf.transpose(x, [0, 2, 3, 1])
-
-
-def to_nhwc(image, data_format):
-    if data_format == 'NCHW':
-        new_image = nchw_to_nhwc(image)
-    else:
-        new_image = image
-    return new_image
-
-
-def to_nhwc_numpy(image, data_format):
-    if data_format == 'NCHW':
-        new_image = image.transpose([0, 2, 3, 1])
-    else:
-        new_image = image
-    return new_image
-
-
-def to_nchw_numpy(image):
-    if image.shape[3] in [1, 3]:
-        new_image = image.transpose([0, 3, 1, 2])
-    else:
-        new_image = image
-    return new_image
-
-
-def norm_img(image, data_format=None):
-    image = image/127.5 - 1.
-    if data_format:
-        image = to_nhwc_numpy(image, data_format)
-    return image
-
-
-def slerp(val, low, high):
-    """Code from https://github.com/soumith/dcgan.torch/issues/14"""
-    omega = np.arccos(np.clip(np.dot(low/np.linalg.norm(low), high/np.linalg.norm(high)), -1, 1))
-    so = np.sin(omega)
-    if so == 0:
-        return (1.0-val) * low + val * high # L'Hopital's rule/LERP
-    return np.sin((1.0-val)*omega) / so * low + np.sin(val*omega) / so * high
-
-
-def init_subgraph(subgraph_name, type_):
-    try:
-        with tf.Session(graph=tf.Graph()) as sess:
-            subgraph = BuiltSubGraph(subgraph_name, type_, sess)
-    except FirstInitialization:
-        with tf.Session(graph=tf.Graph()) as sess:
-            subgraph = BuiltSubGraph(subgraph_name, type_, sess)
-    return subgraph
