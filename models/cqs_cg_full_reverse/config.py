@@ -11,10 +11,11 @@ BEGAN = 'began'
 SCALED_BEGAN_GMSM = 'scaled_began_gmsm'
 #mdl_type
 Z128_SZ64 = 'z128_sz64'
-Z128_SZ64_REUSE = 'z128_sz64_reuse'
+Z256_SZ64 = 'z256_sz64'
 Z1024_SZ64 = 'z1024_sz64'
 Z256_SZ128 = 'z256_sz128'
-
+H128 = 'h128'
+H256 = 'h256'
 
 def config(type_):
     config = cb.Config()
@@ -39,9 +40,9 @@ def config(type_):
         config.mdl_type = Z128_SZ64
         config.z_num = 128
         config.img_size = 64
-    elif Z128_SZ64_REUSE in type_:
-        config.mdl_type = Z128_SZ64_REUSE
-        config.z_num = 128
+    elif Z256_SZ64 in type_:
+        config.mdl_type = Z256_SZ64
+        config.z_num = 256
         config.img_size = 64
     elif Z1024_SZ64 in type_:
         config.mdl_type = Z1024_SZ64
@@ -53,6 +54,12 @@ def config(type_):
         config.img_size = 128
     else:
         raise ConfigError('Invalid config type {} for mdl_type.'.format(type_))
+    if H128 in type_:
+        config.mdl_type = '_'.join([config.mdl_type, H128])
+    elif H256 in type_:
+        config.mdl_type = '_'.join([config.mdl_type, H256])
+    else:
+        raise ConfigError('Invalid config type: {}.'.format(type_))
 
     config.g_lr = 8e-5
     config.d_lr = 8e-5
