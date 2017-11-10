@@ -216,7 +216,7 @@ def build_graph(config):
                 if val < 0:
                     num = 0.1
                 else:
-                    num = np.min([0.1 + (val // config.alpha_update_step_size), 0.9])
+                    num = np.min([0.1 + (val // config.alpha_update_step_size)*0.1, 0.9])
                 self.alphas_feed.append((GENR+ALPH.format(i), num))
             feeds.extend(self.alphas_feed)
             feed_dict = dict(feeds)
@@ -242,34 +242,37 @@ def build_graph(config):
                     feeds.append((CNCN.format(j)+D_IN, img_))
                 self.feed_dict_ = dict(feeds)
 
-            i = step // int(config.alpha_update_steps*2)
+            i = np.min([step // int(config.alpha_update_steps*2), config.repeat_num-1])
 
             #generate
             feeds = [(GENR+INPT, self.z_fixed)]
             feeds.extend(self.alphas_feed)
             feeds = dict(feeds)
-            x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i)),
-                                     feeds)
-            if i > 0:
-                x_gen_prev = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i-1)),
-                                              feeds)
+            x_gens = trainer.sess.run([trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(j))
+                                       for j in range(config.repeat_num)],
+                                      feeds)
+            # if i > 0:
+            #     x_gen_prev = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i-1)),
+            #                                   feeds)
             
-            save_image(denorm_img_numpy(x_gen, trainer.data_format),
+            save_image(denorm_img_numpy(x_gens[i], trainer.data_format),
                        os.path.join(trainer.log_dir, '{}_G.png'.format(step)))
 
             #autoencode
-            for k, img in (('real', self.x_fixed), ('gen', x_gen)):
-                if img is None:
+            for k, imgs in (('real', [self.x_fixed]), ('gen', x_gens)):
+                if imgs is None:
                     continue
-                if img.shape[3] in [1, 3]:
-                    img = img.transpose([0, 3, 1, 2])
+                for i, img in enumerate(imgs):
+                    if img.shape[3] in [1, 3]:
+                        imgs[i] = img.transpose([0, 3, 1, 2])
                 feed_dict = [_ for _ in self.feed_dict_.items()]
                 feed_dict.extend(self.alphas_feed)
                 feed_dict = dict(feed_dict)
                 if k == 'gen':
-                    feed_dict[CNCN.format(i)+D_IN] = img
-                    if i > 0:
-                        feed_dict[CNCN.format(i)+D_IN] = x_gen_prev
+                    for j in range(config.repeat_num):
+                        feed_dict[CNCN.format(j)+D_IN] = imgs[j]
+                    # if i > 0:
+                    #     feed_dict[CNCN.format(i-1)+D_IN] = x_gen_prev
                 x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLN.format(i)+DOUT),
                                      feed_dict)
                 save_image(denorm_img_numpy(x, trainer.data_format),
