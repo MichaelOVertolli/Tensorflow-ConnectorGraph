@@ -89,22 +89,25 @@ def build_graph(config):
 
     conngraph.quick_connect(connections)
 
+
+
     with tf.Session(graph=tf.Graph()) as sess:
         conngraph.connect_graph(inputs, outputs, sess)
 
         step = tf.Variable(0, name='step', trainable=False)
         
         with tf.variable_scope('cqs_train'):
-            alphas = []
-            alpha_updates = []
-            for i in range(config.repeat_num-1):
-                alpha = conngraph.get_variable(GENR+ALPH.format(i))
-                alphas.append(tf.identity(alpha, name='alpha'+str(i)))
-                alpha = tf.assign(alpha,
-                                  tf.clip_by_value((tf.cast(step, tf.float32)/config.alpha_update_steps) - (2*(i+1) - 1),
-                                                   0.1,
-                                                   0.9))
-                alpha_updates.append(alpha)
+            # alphas = []
+            # alpha_updates = []
+            # for i in range(config.repeat_num-1):
+            #     alpha = conngraph.get_variable(GENR+ALPH.format(i))
+            #     alphas.append(tf.identity(alpha, name='alpha'+str(i)))
+            #     pairs = 
+            #     alpha = tf.assign(alpha,
+            #                       tf.clip_by_value((tf.cast(step, tf.float32)/config.alpha_update_steps) - (2*(i+1) - 1),
+            #                                        0.1,
+            #                                        0.9))
+            #     alpha_updates.append(alpha)
 
             d_losses = []
             g_losses = []
@@ -112,7 +115,7 @@ def build_graph(config):
                 d_loss = sess.graph.get_tensor_by_name(LSDN.format(i)+OUTP)
                 g_loss = sess.graph.get_tensor_by_name(LSGN.format(i)+OUTP)
                 d_loss = tf.identity(d_loss, name='d_loss'+str(i))
-                g_loss = tf.identity(g_loss, name='g_loss'+str(i)) #collapsing to NaN
+                g_loss = tf.identity(g_loss, name='g_loss'+str(i))
                 d_losses.append(d_loss)
                 g_losses.append(g_loss)
 
@@ -164,8 +167,8 @@ def build_graph(config):
                     tf.summary.scalar('loss/d_loss_'+str(8*(2**i)), d_losses[i]),
                 ]
                 summaries.extend(summ)
-            for i, alpha in enumerate(alphas):
-                summaries.append(tf.summary.scalar('misc/alpha_'+str(i), alpha))
+            for i in range(config.repeat_num-1):
+                summaries.append(tf.summary.scalar('misc/alpha_'+str(i), sess.graph.get_tensor_by_name(GENR+ALPH.format(i))))
             
             summary_op = tf.summary.merge(summaries)
 
@@ -187,7 +190,7 @@ def build_graph(config):
         tf.add_to_collection('outputs', k_update)
         tf.add_to_collection('outputs', measure)
         # for alpha in alpha_updates:
-        #     tf.add_to_collection('outputs', alpha) #needs to be run every step to work
+        #     tf.add_to_collection('outputs', alpha) 
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
@@ -206,6 +209,16 @@ def build_graph(config):
                 img = block_reduce(x, (1, 1, block_size, block_size), np.mean)
                 feeds.append((CNCN.format(i)+D_IN, img))
                 feeds.append((LSDN.format(i)+O_IN, img))
+            step = trainer.sess.run(trainer.step)
+            self.alphas_feed = []
+            for i in range(config.repeat_num-1):
+                val = step - config.alpha_update_steps*(2*(i+1) - 1)
+                if val < 0:
+                    num = 0.1
+                else:
+                    num = np.min([0.1 + (val // config.alpha_update_step_size), 0.9])
+                self.alphas_feed.append((GENR+ALPH.format(i), num))
+            feeds.extend(self.alphas_feed)
             feed_dict = dict(feeds)
             return feed_dict
         
@@ -232,11 +245,14 @@ def build_graph(config):
             i = step // int(config.alpha_update_steps*2)
 
             #generate
+            feeds = [(GENR+INPT, self.z_fixed)]
+            feeds.extend(self.alphas_feed)
+            feeds = dict(feeds)
             x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i)),
-                                     {GENR+INPT: self.z_fixed})
+                                     feeds)
             if i > 0:
                 x_gen_prev = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i-1)),
-                                              {GENR+INPT: self.z_fixed})
+                                              feeds)
             
             save_image(denorm_img_numpy(x_gen, trainer.data_format),
                        os.path.join(trainer.log_dir, '{}_G.png'.format(step)))
@@ -247,7 +263,9 @@ def build_graph(config):
                     continue
                 if img.shape[3] in [1, 3]:
                     img = img.transpose([0, 3, 1, 2])
-                feed_dict = dict([_ for _ in self.feed_dict_.items()])
+                feed_dict = [_ for _ in self.feed_dict_.items()]
+                feed_dict.extend(self.alphas_feed)
+                feed_dict = dict(feed_dict)
                 if k == 'gen':
                     feed_dict[CNCN.format(i)+D_IN] = img
                     if i > 0:
@@ -264,8 +282,11 @@ def build_graph(config):
             for _, ratio in enumerate(np.linspace(0, 1, 10)):
                 z = np.stack([slerp(ratio, r1, r2) for r1, r2 in zip(self.z_fixed, z_flex)])
                 #generate
+                feeds = [(GENR+INPT, z)]
+                feeds.extend(self.alphas_feed)
+                feeds = dict(feeds)
                 z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i)),
-                                            {GENR+INPT: z})
+                                            feeds)
                 generated.append(denorm_img_numpy(z_decode, trainer.data_format))
 
             generated = np.stack(generated).transpose([1, 0, 2, 3, 4])
