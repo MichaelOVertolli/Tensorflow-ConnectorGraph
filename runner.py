@@ -13,8 +13,8 @@ DATA_DIR = './data/'
 
 
 class Runner(object):
-    def __init__(self, frozen_graph, log_folder,
-                 data_name='imgnet', batch_size=16, z_num=128,
+    def __init__(self, frozen_graphs, log_folder,
+                 data_name='CelebA', batch_size=16, z_num=128,
                  img_size=64, data_format='NCHW'):
         self.log_dir = os.path.join(LOGS_DIR, log_folder)
         if not os.path.exists(self.log_dir):
@@ -23,16 +23,17 @@ class Runner(object):
         self.run_type = 'train'
         self.data_format = data_format
 
-        self.frozen_graph = frozen_graph
+        self.frozen_graphs = frozen_graphs
 
         self.z_num = z_num
         self.batch_size = batch_size
         self.img_size = img_size            
         
         with tf.Graph().as_default():
-            self.frozen_graph.restore(self.frozen_graph.name,
-                                      self.frozen_graph.config_type,
-                                      None)
+            for fgraph in self.frozen_graphs:
+                fgraph.restore(self.frozen_graph.name,
+                               self.frozen_graph.config_type,
+                               None)
             self.data_loader = get_loader(self.data_dir,
                                           self.batch_size,
                                           self.img_size,

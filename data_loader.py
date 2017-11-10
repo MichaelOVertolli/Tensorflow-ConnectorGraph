@@ -6,7 +6,7 @@ from nriqa import toyiq
 
 def get_loader(root, batch_size, scale_size, data_format, split=None, is_grayscale=False, seed=None):
     dataset_name = os.path.basename(root)
-    if (dataset_name in ['CelebA', 'lsun'] or 'imgnet' in dataset_name) and split:
+    if (dataset_name in ['CelebA', 'lsun', 'msceleb'] or 'imgnet' in dataset_name) and split:
         root = os.path.join(root, 'splits', split)
 
     for ext in ["jpg", "JPEG", "png"]:

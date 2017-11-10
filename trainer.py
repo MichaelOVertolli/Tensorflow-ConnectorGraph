@@ -106,8 +106,6 @@ class Trainer(object):
                         out_str.append('{}: {:.6f}'.format(var, val))
                 print('[{}/{}]\n'.format(step, self.max_step) + '\n'.join(out_str))
 
-            #TODO: add subgraph component save
-
             if step % (self.log_step * 100) == 0:
                 self.c_graph.send_outputs(self, step)
 
