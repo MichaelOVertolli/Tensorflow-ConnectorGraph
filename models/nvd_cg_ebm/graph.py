@@ -130,10 +130,10 @@ def build_graph(config):
             g_lr = tf.Variable(config.g_lr, name='g_lr')
             d_lr = tf.Variable(config.d_lr, name='d_lr')
 
-            g_lr_update = tf.assign(g_lr, tf.maximum(g_lr * 0.5, config.lr_lower_boundary), name='g_lr_update')
-            d_lr_update = tf.assign(d_lr, tf.maximum(d_lr * 0.5, config.lr_lower_boundary), name='d_lr_update')
+            g_lr_update = tf.assign(g_lr, tf.maximum(g_lr * 1.0, config.lr_lower_boundary), name='g_lr_update')
+            d_lr_update = tf.assign(d_lr, tf.maximum(d_lr * 1.0, config.lr_lower_boundary), name='d_lr_update')
 
-            g_optimizer = tf.train.AdamOptimizer(g_lr, beta1=0.)
+            g_optimizer = tf.train.AdamOptimizer(g_lr)
             d_optimizer = tf.train.AdamOptimizer(d_lr)
 
             g_optim = g_optimizer.minimize(g_out, global_step=step, var_list=tf.get_collection(GENR+VARS))
