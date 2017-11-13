@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import tf.contrib.layers.variance_scaling_initializer as var_init
+from tensorflow.contrib.layers import variance_scaling_initializer as var_init
 slim = tf.contrib.slim
 
 
