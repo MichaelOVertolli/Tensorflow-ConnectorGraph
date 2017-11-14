@@ -97,18 +97,6 @@ def build_graph(config):
         step = tf.Variable(0, name='step', trainable=False)
         
         with tf.variable_scope('cqs_train'):
-            # alphas = []
-            # alpha_updates = []
-            # for i in range(config.repeat_num-1):
-            #     alpha = conngraph.get_variable(GENR+ALPH.format(i))
-            #     alphas.append(tf.identity(alpha, name='alpha'+str(i)))
-            #     pairs = 
-            #     alpha = tf.assign(alpha,
-            #                       tf.clip_by_value((tf.cast(step, tf.float32)/config.alpha_update_steps) - (2*(i+1) - 1),
-            #                                        0.1,
-            #                                        0.9))
-            #     alpha_updates.append(alpha)
-
             d_losses = []
             g_losses = []
             for i in range(config.repeat_num):
@@ -136,7 +124,7 @@ def build_graph(config):
             g_optimizer = tf.train.AdamOptimizer(g_lr)
             d_optimizer = tf.train.AdamOptimizer(d_lr)
 
-            g_optim = g_optimizer.minimize(g_out, global_step=step, var_list=tf.get_collection(GENR+VARS))
+            g_optim = g_optimizer.minimize(g_losses[0], global_step=step, var_list=tf.get_collection(GENR+VARS))
             d_optim = d_optimizer.minimize(d_out, var_list=tf.get_collection(DISC+VARS))
 
             balance = config.gamma * d_mean - g_mean
@@ -172,7 +160,6 @@ def build_graph(config):
             
             summary_op = tf.summary.merge(summaries)
 
-            #TODO: should reuse Savers from the original subgraph definitions
             savers = {
                 GENR: tf.train.Saver(sess.graph.get_collection('/'.join([GENR, 'variables']))),
                 DISC: tf.train.Saver(sess.graph.get_collection('/'.join([DISC, 'variables'])))
@@ -189,15 +176,12 @@ def build_graph(config):
         tf.add_to_collection('outputs_interim', summary_op)
         tf.add_to_collection('outputs', k_update)
         tf.add_to_collection('outputs', measure)
-        # for alpha in alpha_updates:
-        #     tf.add_to_collection('outputs', alpha) 
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
 
         def get_feed_dict(self, trainer):
             x = trainer.data_loader
-            # x = norm_img(x)
             x = trainer.sess.run(x)
             x = norm_img(x) #running numpy version so don't have to modify graph
             z = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
@@ -251,9 +235,6 @@ def build_graph(config):
             x_gens = trainer.sess.run([trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(j))
                                        for j in range(config.repeat_num)],
                                       feeds)
-            # if i > 0:
-            #     x_gen_prev = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i-1)),
-            #                                   feeds)
             
             save_image(denorm_img_numpy(x_gens[i], trainer.data_format),
                        os.path.join(trainer.log_dir, '{}_G.png'.format(step)))
@@ -271,8 +252,6 @@ def build_graph(config):
                 if k == 'gen':
                     for j in range(config.repeat_num):
                         feed_dict[CNCN.format(j)+D_IN] = imgs[j]
-                    # if i > 0:
-                    #     feed_dict[CNCN.format(i-1)+D_IN] = x_gen_prev
                 x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLN.format(i)+DOUT),
                                      feed_dict)
                 save_image(denorm_img_numpy(x, trainer.data_format),
@@ -301,5 +280,3 @@ def build_graph(config):
         conngraph.attach_func(send_outputs)
         
     return conngraph
-
-
