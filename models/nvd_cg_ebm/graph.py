@@ -124,7 +124,7 @@ def build_graph(config):
             g_optimizer = tf.train.AdamOptimizer(g_lr)
             d_optimizer = tf.train.AdamOptimizer(d_lr)
 
-            g_optim = g_optimizer.minimize(g_losses[0], global_step=step, var_list=tf.get_collection(GENR+VARS))
+            g_optim = g_optimizer.minimize(g_mean, global_step=step, var_list=tf.get_collection(GENR+VARS))
             d_optim = d_optimizer.minimize(d_out, var_list=tf.get_collection(DISC+VARS))
 
             balance = config.gamma * d_mean - g_mean

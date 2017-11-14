@@ -6,6 +6,7 @@ import numpy as np
 #TYPES:
 Z128_SZ64 = 'z128_sz64'
 Z256_SZ64 = 'z256_sz64'
+Z512_SZ64 = 'z512_sz64'
 Z1024_SZ64 = 'z1024_sz64'
 Z2048_SZ64 = 'z2048_sz64'
 Z256_SZ128 = 'z256_sz128'
@@ -25,6 +26,9 @@ def config(type_):
         config.size = 64
     elif Z256_SZ64 in type_:
         config.z_num = 256
+        config.size = 64
+    elif Z512_SZ64 in type_:
+        config.z_num = 512
         config.size = 64
     elif Z1024_SZ64 in type_:
         config.z_num = 1024
