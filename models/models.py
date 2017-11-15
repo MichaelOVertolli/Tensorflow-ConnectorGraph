@@ -44,9 +44,9 @@ def GeneratorRCNN(x, input_channel, z_num, repeat_num, hidden_num, data_format):
 def GeneratorNSkipCNN(z, hidden_num, output_num, repeat_num, alphas, data_format):
     with tf.variable_scope("G") as vs:
         x = tf.pad(z, [[0, 0], [0, 0], [3, 3], [3, 3]], 'CONSTANT')
-        x = slim.conv2d(x, hidden_num, 4, 1, padding='VALID', activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+        x = slim.conv2d(x, hidden_num, 4, 1, padding='VALID', activation_fn=leaky_relu, weights_initializer=var_init,
                         normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
-        x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+        x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                         normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
         
         out_set = []
@@ -54,9 +54,9 @@ def GeneratorNSkipCNN(z, hidden_num, output_num, repeat_num, alphas, data_format
         for idx in range(1, repeat_num):
             if idx > 3:
                 channel_num /= 2
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
             if idx < repeat_num - 1:
                 out_set.append(x*(1 - alphas[idx]))
@@ -78,9 +78,9 @@ def GeneratorSkipCNN(z, hidden_num, output_num, repeat_num, alphas, data_format,
         x = reshape(x, 8, 8, hidden_num, data_format)
         out_set = []
         for idx in range(repeat_num):
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
             if idx < repeat_num - 1:
                 out_set.append(x*(1 - alphas[idx]))
@@ -134,19 +134,19 @@ def DiscriminatorSkipCNN(xs, input_channel, z_num, repeat_num, hidden_num, data_
         # Encoder
         xs_ = xs[::-1]
         for i in range(1, len(xs_)):
-            xs_[i] = slim.conv2d(xs_[i], hidden_num*i, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+            xs_[i] = slim.conv2d(xs_[i], hidden_num*i, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                                  data_format=data_format)
-        x = slim.conv2d(xs_[0], hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+        x = slim.conv2d(xs_[0], hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                         data_format=data_format)
         prev_channel_num = hidden_num
         for idx in range(repeat_num):
             channel_num = hidden_num * (idx + 1)
-            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                             data_format=data_format)
-            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init,
                             data_format=data_format)
             if idx < repeat_num - 1:
-                x = slim.conv2d(x, channel_num, 3, 2, activation_fn=leaky_relu, weights_initializer=tf.random_normal_initializer(),
+                x = slim.conv2d(x, channel_num, 3, 2, activation_fn=leaky_relu, weights_initializer=var_init,
                                 data_format=data_format)
                 x = x + xs_[idx+1]
                 #x = tf.contrib.layers.max_pool2d(x, [2, 2], [2, 2], padding='VALID')
