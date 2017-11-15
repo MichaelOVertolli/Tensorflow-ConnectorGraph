@@ -192,8 +192,8 @@ def batch_stdeps(x):
 
 def minibatch_disc_concat(x):
     splt0, splt1 = tf.split(x, 2)
-    shape = tf.shape(splt0)
-    shape[1] = 1
+    slice_ = splt0[:, 0, :, :]
+    shape = tf.shape(slice_)
     c0 = tf.constant(tf.reduce_mean(batch_stdeps(splt0)), tf.float32, shape)
     c1 = tf.constant(tf.reduce_mean(batch_stdeps(splt1)), tf.float32, shape)
     return tf.concat([x, tf.concat([c0, c1], 0)], 1)
