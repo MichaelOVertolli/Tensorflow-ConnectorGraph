@@ -209,7 +209,8 @@ def upscale(x, scale, data_format):
 
 
 def leaky_relu(features, name=None):
-    return tf.maximum(features, 0.2*features)
+    out = tf.relu(features, name)
+    return tf.maximum(out, 0.2*out)
 
 
 def batch_stdeps(x):
