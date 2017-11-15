@@ -141,8 +141,7 @@ def build_graph(config):
                     op = tf.assign(var, var/tf.sqrt(tf.reduce_mean(var*var)))
                     weight_updates.append(op)
 
-            with tf.control_dependencies([k_update]):
-                norm_weights = tf.group(*weight_updates, name='norm_weights')
+            norm_weights = tf.group(*weight_updates, name='norm_weights')
 
             summaries = [
                 tf.summary.scalar('loss/d_out', d_out),
@@ -183,14 +182,17 @@ def build_graph(config):
         tf.add_to_collection('outputs_interim', g_out)
         tf.add_to_collection('outputs_interim', k_t)
         tf.add_to_collection('outputs_interim', summary_op)
-        # tf.add_to_collection('outputs', k_update)
-        tf.add_to_collection('outputs', norm_weights)
+        tf.add_to_collection('outputs', k_update)
         tf.add_to_collection('outputs', measure)
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
+        tf.add_to_collection('norm_weights', norm_weights)
 
         def get_feed_dict(self, trainer):
+            # hack to handle weight norming
+            _ = trainer.sess.run(tf.get_collection('norm_weights')[0])
+            
             x = trainer.data_loader
             x = trainer.sess.run(x)
             x = norm_img(x) #running numpy version so don't have to modify graph
