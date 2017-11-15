@@ -191,7 +191,7 @@ def build_graph(config):
 
         def get_feed_dict(self, trainer):
             # hack to handle weight norming
-            _ = trainer.sess.run(tf.get_collection('norm_weights')[0])
+            _ = trainer.sess.run(trainer.c_graph.graph.get_collection('norm_weights')[0])
             
             x = trainer.data_loader
             x = trainer.sess.run(x)
