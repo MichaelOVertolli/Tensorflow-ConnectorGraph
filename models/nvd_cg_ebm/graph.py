@@ -111,7 +111,7 @@ def build_graph(config):
             g_mean = tf.reduce_mean(tf.stack(g_losses))
             k_t = tf.Variable(0., trainable=False, name='k_t')
 
-            d_out = d_mean - k_t * g_losses[0]
+            d_out = d_mean - k_t * g_mean
             d_out = tf.identity(d_out, name='d_loss_out')
             g_out = tf.identity(g_mean, name='g_loss_out')
 
@@ -124,7 +124,7 @@ def build_graph(config):
             g_optimizer = tf.train.AdamOptimizer(g_lr)
             d_optimizer = tf.train.AdamOptimizer(d_lr)
 
-            g_optim = g_optimizer.minimize(g_losses[0], global_step=step, var_list=tf.get_collection(GENR+VARS))
+            g_optim = g_optimizer.minimize(g_mean, global_step=step, var_list=tf.get_collection(GENR+VARS))
             d_optim = d_optimizer.minimize(d_out, var_list=tf.get_collection(DISC+VARS))
 
             balance = config.gamma * d_mean - g_mean

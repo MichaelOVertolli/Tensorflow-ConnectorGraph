@@ -122,7 +122,9 @@ def DiscriminatorSkipCNN(xs, input_channel, z_num, repeat_num, hidden_num, data_
                 x = x + xs_[idx+1]
                 #x = tf.contrib.layers.max_pool2d(x, [2, 2], [2, 2], padding='VALID')
 
-        x = tf.reshape(x, [-1, np.prod([8, 8, channel_num])])
+        x = minibatch_disc_concat(x)
+        
+        x = tf.reshape(x, [-1, np.prod([8, 8, channel_num+1])])
         z = x = slim.fully_connected(x, z_num, activation_fn=None)
 
         # Decoder
@@ -182,6 +184,19 @@ def resize_nearest_neighbor(x, new_size, data_format):
 def upscale(x, scale, data_format):
     _, h, w, _ = get_conv_shape(x, data_format)
     return resize_nearest_neighbor(x, (h*scale, w*scale), data_format)
+
+
+def batch_stdeps(x):
+    return tf.sqrt(tf.reduce_mean(tf.square(x - tf.reduce_mean(x)), [1, 2, 3]) + 1e-8)
+
+
+def minibatch_disc_concat(x):
+    splt0, splt1 = tf.split(x, 2)
+    shape = tf.shape(splt0)
+    shape[1] = 1
+    c0 = tf.constant(tf.reduce_mean(batch_stdeps(splt0)), tf.float32, shape)
+    c1 = tf.constant(tf.reduce_mean(batch_stdeps(splt1)), tf.float32, shape)
+    return tf.concat([x, tf.concat([c0, c1], 0)], 1)
 
 
 
