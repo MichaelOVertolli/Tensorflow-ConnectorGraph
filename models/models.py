@@ -209,7 +209,7 @@ def upscale(x, scale, data_format):
 
 
 def leaky_relu(features, name=None):
-    out = tf.relu(features, name)
+    out = tf.nn.relu(features, name)
     return tf.maximum(out, 0.2*out)
 
 
