@@ -135,6 +135,15 @@ def build_graph(config):
                 k_update = tf.assign(k_t, tf.clip_by_value(k_t + config.lambda_k * balance, 0, 1))
                 k_update = tf.identity(k_update, name='k_update')
 
+            weight_updates = []
+            for var in tf.get_collection(VARS):
+                if '/weights' in var.name:
+                    op = tf.assign(var, var/tf.sqrt(tf.reduce_mean(var*var)))
+                    weight_updates.append(op)
+
+            with tf.control_dependencies([k_update]):
+                norm_weights = tf.group(*weight_updates, name='norm_weights')
+
             summaries = [
                 tf.summary.scalar('loss/d_out', d_out),
                 tf.summary.scalar('loss/g_out', g_out),
@@ -174,7 +183,8 @@ def build_graph(config):
         tf.add_to_collection('outputs_interim', g_out)
         tf.add_to_collection('outputs_interim', k_t)
         tf.add_to_collection('outputs_interim', summary_op)
-        tf.add_to_collection('outputs', k_update)
+        # tf.add_to_collection('outputs', k_update)
+        tf.add_to_collection('outputs', norm_weights)
         tf.add_to_collection('outputs', measure)
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
