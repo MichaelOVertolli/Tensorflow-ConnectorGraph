@@ -49,9 +49,9 @@ def GeneratorSkipCNN(z, hidden_num, output_num, repeat_num, alphas, data_format,
         #alphas = [tf.Variable(0, name='alpha_{}'.format(i)) for i in range(repeat_num - 1)]
         out_set = []
         for idx in range(repeat_num):
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(),
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
             if idx < repeat_num - 1:
                 out_set.append(x*(1 - alphas[idx]))
@@ -105,19 +105,19 @@ def DiscriminatorSkipCNN(xs, input_channel, z_num, repeat_num, hidden_num, data_
         # Encoder
         xs_ = xs[::-1]
         for i in range(1, len(xs_)):
-            xs_[i] = slim.conv2d(xs_[i], hidden_num*i, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+            xs_[i] = slim.conv2d(xs_[i], hidden_num*i, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
-        x = slim.conv2d(xs_[0], hidden_num, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+        x = slim.conv2d(xs_[0], hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
         prev_channel_num = hidden_num
         for idx in range(repeat_num):
             channel_num = hidden_num * (idx + 1)
-            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
-            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
             if idx < repeat_num - 1:
-                x = slim.conv2d(x, channel_num, 3, 2, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+                x = slim.conv2d(x, channel_num, 3, 2, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
                 x = x + xs_[idx+1]
                 #x = tf.contrib.layers.max_pool2d(x, [2, 2], [2, 2], padding='VALID')
@@ -133,9 +133,9 @@ def DiscriminatorSkipCNN(xs, input_channel, z_num, repeat_num, hidden_num, data_
         x = reshape(x, 8, 8, hidden_num, data_format)
         out_set = []
         for idx in range(repeat_num):
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
-            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.relu, weights_initializer=var_init(), 
+            x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(), 
                             normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
             out_set.append(x)
             if idx < repeat_num - 1:
@@ -184,6 +184,10 @@ def resize_nearest_neighbor(x, new_size, data_format):
 def upscale(x, scale, data_format):
     _, h, w, _ = get_conv_shape(x, data_format)
     return resize_nearest_neighbor(x, (h*scale, w*scale), data_format)
+
+
+def leaky_relu(features, name=None):
+    return tf.maximum(features, 0.2*features)
 
 
 def batch_stdeps(x):
