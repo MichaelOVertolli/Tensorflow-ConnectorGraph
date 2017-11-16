@@ -13,7 +13,7 @@ def build_graph(model_name, config):
                                                 config.repeat_num, alphas,
                                                 config.data_format, False)
     G_ins, G_outs, G_vars = [G0_in], [G0_outs], [G0_vars]
-    for i in range(1, repeat_num):
+    for i in range(1, config.repeat_num):
         G_ins.append(tf.placeholder(tf.float32, [None, config.z_num], name='input'+str(i)))
         temp_outs, temp_vars = models.GeneratorNSkipCNN(G_ins[i],
                                                         config.hidden_num, config.output_num,
