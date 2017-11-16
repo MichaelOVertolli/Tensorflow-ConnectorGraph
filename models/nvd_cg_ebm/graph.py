@@ -187,7 +187,7 @@ def build_graph(config):
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
-        tf.add_to_collection('norm_weights', norm_weights)
+        # tf.add_to_collection('norm_weights', norm_weights)
 
         def get_feed_dict(self, trainer):
             # hack to handle weight norming
