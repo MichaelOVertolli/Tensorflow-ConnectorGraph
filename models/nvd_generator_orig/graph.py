@@ -8,7 +8,7 @@ def build_graph(model_name, config):
     #           for i in range(config.repeat_num-1)]
     alphas = [tf.placeholder(tf.float32, (), name='alpha'+str(i)) for i in range(config.repeat_num-1)]
     G0_in = tf.placeholder(tf.float32, [None, config.z_num], name='input0')
-    G0_outs, G0_vars = models.GeneratorNSkipCNN(G_in,
+    G0_outs, G0_vars = models.GeneratorNSkipCNN(G0_in,
                                                 config.hidden_num, config.output_num,
                                                 config.repeat_num, alphas,
                                                 config.data_format, False)
