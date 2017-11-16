@@ -135,13 +135,13 @@ def build_graph(config):
                 k_update = tf.assign(k_t, tf.clip_by_value(k_t + config.lambda_k * balance, 0, 1))
                 k_update = tf.identity(k_update, name='k_update')
 
-            weight_updates = []
-            for var in tf.get_collection(VARS):
-                if '/weights' in var.name:
-                    op = tf.assign(var, var/tf.sqrt(tf.reduce_mean(var*var)))
-                    weight_updates.append(op)
+            # weight_updates = []
+            # for var in tf.get_collection(VARS):
+            #     if '/weights' in var.name:
+            #         op = tf.assign(var, var/tf.sqrt(tf.reduce_mean(var*var)))
+            #         weight_updates.append(op)
 
-            norm_weights = tf.group(*weight_updates, name='norm_weights')
+            # norm_weights = tf.group(*weight_updates, name='norm_weights')
 
             summaries = [
                 tf.summary.scalar('loss/d_out', d_out),
@@ -191,7 +191,7 @@ def build_graph(config):
 
         def get_feed_dict(self, trainer):
             # hack to handle weight norming
-            _ = trainer.sess.run(trainer.c_graph.graph.get_collection('norm_weights')[0])
+            # _ = trainer.sess.run(trainer.c_graph.graph.get_collection('norm_weights')[0])
             
             x = trainer.data_loader
             x = trainer.sess.run(x)
