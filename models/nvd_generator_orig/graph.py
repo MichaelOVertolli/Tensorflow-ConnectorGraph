@@ -19,13 +19,16 @@ def build_graph(model_name, config):
                                                         config.hidden_num, config.output_num,
                                                         config.repeat_num, alphas,
                                                         config.data_format, True)
+        G_outs.append(temp_outs)
+        G_vars.append(temp_vars)
+        
     for alpha in alphas:
         tf.add_to_collection('inputs', alpha)
     for G_in in G_ins:
         tf.add_to_collection('inputs', G_in)
     for j, G_out in enumerate(G_outs):
         for i in range(len(G_out)):
-            temp = tf.identity(G_outs[i], name='_'.join(['output', str(j), str(i)]))
+            temp = tf.identity(G_out[i], name='_'.join(['output', str(j), str(i)]))
             tf.add_to_collection('outputs', temp)
     saver = tf.train.Saver()
     return saver
