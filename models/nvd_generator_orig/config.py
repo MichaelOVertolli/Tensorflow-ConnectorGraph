@@ -10,8 +10,10 @@ Z512_SZ64 = 'z512_sz64'
 Z1024_SZ64 = 'z1024_sz64'
 Z2048_SZ64 = 'z2048_sz64'
 Z256_SZ128 = 'z256_sz128'
+Z512_SZ1024 = 'z512_sz1024'
 H128 = 'h128'
 H256 = 'h256'
+H512 = 'h512'
 
 def config(type_):
     config = cb.Config()
@@ -38,12 +40,17 @@ def config(type_):
     elif Z256_SZ128 in type_:
         config.z_num = 256
         config.size = 128
+    elif Z512_SZ1024 in type_:
+        config.z_num = 512
+        config.size = 1024
     else:
         raise ConfigError('Invalid config type: {}.'.format(type_))
     if H128 in type_:
         config.hidden_num = 128
     elif H256 in type_:
         config.hidden_num = 256
+    elif H512 in type_:
+        config.hidden_num = 512
     else:
         raise ConfigError('Invalid config type: {}.'.format(type_))
 
