@@ -24,15 +24,19 @@ def GeneratorCNN(z, hidden_num, output_num, repeat_num, data_format, reuse):
 
 def GeneratorRCNN(x, input_channel, z_num, repeat_num, hidden_num, data_format):
     with tf.variable_scope("GR") as vs:
-        x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.elu, normalizer_fn=slim.batch_norm, data_format=data_format)
+        x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.elu, #normalizer_fn=slim.batch_norm,
+                        data_format=data_format)
 
         prev_channel_num = hidden_num
         for idx in range(repeat_num):
             channel_num = hidden_num * (idx + 1)
-            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=tf.nn.elu, normalizer_fn=slim.batch_norm, data_format=data_format)
-            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=tf.nn.elu, normalizer_fn=slim.batch_norm, data_format=data_format)
+            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=tf.nn.elu, #normalizer_fn=slim.batch_norm,
+                            data_format=data_format)
+            x = slim.conv2d(x, channel_num, 3, 1, activation_fn=tf.nn.elu, #normalizer_fn=slim.batch_norm,
+                            data_format=data_format)
             if idx < repeat_num - 1:
-                x = slim.conv2d(x, channel_num, 3, 2, activation_fn=tf.nn.elu, normalizer_fn=slim.batch_norm, data_format=data_format)
+                x = slim.conv2d(x, channel_num, 3, 2, activation_fn=tf.nn.elu, #normalizer_fn=slim.batch_norm,
+                                data_format=data_format)
 
         x = tf.reshape(x, [-1, np.prod([8, 8, channel_num])])
         z = slim.fully_connected(x, z_num, activation_fn=None)
@@ -41,11 +45,10 @@ def GeneratorRCNN(x, input_channel, z_num, repeat_num, hidden_num, data_format):
     return z, variables
 
 
-def GeneratorNSkipCNN(z, hidden_num, output_num, repeat_num, alphas, data_format):
-    with tf.variable_scope("G") as vs:
+def GeneratorNSkipCNN(z, hidden_num, output_num, repeat_num, alphas, data_format, reuse):
+    with tf.variable_scope("G", reuse=reuse) as vs:
         x = tf.pad(z, [[0, 0], [0, 0], [3, 3], [3, 3]], 'CONSTANT')
-        x = slim.conv2d(x, hidden_num, 4, 1, padding='VALID', activation_fn=leaky_relu, weights_initializer=var_init(),
-                        normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
+        x = slim.conv2d(x, hidden_num, 4, 1, padding='VALID', activation_fn=leaky_relu, weights_initializer=var_init(), data_format=data_format)
         x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
                         normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
         
@@ -176,6 +179,40 @@ def DiscriminatorSkipCNN(xs, input_channel, z_num, repeat_num, hidden_num, data_
 
     variables = tf.contrib.framework.get_variables(vs)
     return out_set, z, variables
+
+
+def DiscriminatorNSkipCNN(xs, input_channel, z_num, repeat_num, hidden_num, data_format, reuse):
+    with tf.variable_scope("D", reuse=reuse) as vs:
+        # Encoder
+        sizes = [min(2**(11-i), hidden_num) for i in range(repeat_num)]
+        sizes.reverse()
+        xs_ = xs[::-1]
+        for i in range(1, len(xs_)):
+            xs_[i] = slim.conv2d(xs_[i], sizes[i], 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
+                                 data_format=data_format)
+        x = slim.conv2d(xs_[0], sizes[0], 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
+                        data_format=data_format)
+        prev_channel_num = hidden_num
+        for idx in range(repeat_num):
+            x = slim.conv2d(x, sizes[idx], 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
+                            data_format=data_format)
+            x = slim.conv2d(x, sizes[idx+1], 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
+                            data_format=data_format)
+            if idx < repeat_num - 1:
+                x = slim.conv2d(x, sizes[idx+1], 3, 2, activation_fn=leaky_relu, weights_initializer=var_init(),
+                                data_format=data_format)
+                x = x + xs_[idx+1]
+                #x = tf.contrib.layers.max_pool2d(x, [2, 2], [2, 2], padding='VALID')
+
+        x = minibatch_disc_concat(x)
+        x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
+                        data_format=data_format)
+        x = slim.conv2d(x, hidden_num, 4, 1, padding='VALID', activation_fn=leaky_relu, weights_initializer=var_init(), data_format=data_format)
+        
+        x = slim.fully_connected(x, 1, activation_fn=None)
+
+    variables = tf.contrib.framework.get_variables(vs)
+    return x, variables
 
 def int_shape(tensor):
     shape = tensor.get_shape().as_list()
