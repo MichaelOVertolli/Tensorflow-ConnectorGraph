@@ -3,6 +3,7 @@ from ..errors import FirstInitialization
 import numpy as np
 import os
 from skimage.measure import block_reduce
+from scipy.ndimage import zoom
 from ..subgraph import BuiltSubGraph, SubGraph
 import tensorflow as tf
 from ..model_utils import *
@@ -238,7 +239,7 @@ def build_graph(config):
                     feeds.append((CNCN.format(j)+D_IN, img_))
                 self.feed_dict_ = dict(feeds)
 
-            i = np.min([step // int(config.alpha_update_steps*2), config.repeat_num-1])
+            pos = np.min([step // int(config.alpha_update_steps*2), config.repeat_num-1])
 
             #generate
             feeds = [(GENR+INPT, self.z_fixed)]
@@ -247,26 +248,27 @@ def build_graph(config):
             x_gens = trainer.sess.run([trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(j))
                                        for j in range(config.repeat_num)],
                                       feeds)
-            
-            save_image(denorm_img_numpy(x_gens[i], trainer.data_format),
+
+            scale_factor = trainer.img_size//x_gens[pos].shape[2]
+            save_image(zoom(denorm_img_numpy(x_gens[pos], [1, scale_factor, scale_factor, 1]), trainer.data_format),
                        os.path.join(trainer.log_dir, '{}_G.png'.format(step)))
 
             #autoencode
             for k, imgs in (('real', [self.x_fixed]), ('gen', x_gens)):
                 if imgs is None:
                     continue
-                for i, img in enumerate(imgs):
+                for j, img in enumerate(imgs):
                     if img.shape[3] in [1, 3]:
-                        imgs[i] = img.transpose([0, 3, 1, 2])
+                        imgs[j] = img.transpose([0, 3, 1, 2])
                 feed_dict = [_ for _ in self.feed_dict_.items()]
                 feed_dict.extend(self.alphas_feed)
                 feed_dict = dict(feed_dict)
                 if k == 'gen':
                     for j in range(config.repeat_num):
                         feed_dict[CNCN.format(j)+D_IN] = imgs[j]
-                x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLN.format(i)+DOUT),
+                x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLN.format(pos)+DOUT),
                                      feed_dict)
-                save_image(denorm_img_numpy(x, trainer.data_format),
+                save_image(zoom(denorm_img_numpy(x, trainer.data_format), [1, scale_factor, scale_factor, 1]),
                            os.path.join(trainer.log_dir, '{}_D_{}.png'.format(step, k)))
 
 
@@ -279,9 +281,9 @@ def build_graph(config):
                 feeds = [(GENR+INPT, z)]
                 feeds.extend(self.alphas_feed)
                 feeds = dict(feeds)
-                z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i)),
+                z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(pos)),
                                             feeds)
-                generated.append(denorm_img_numpy(z_decode, trainer.data_format))
+                generated.append(zoom(denorm_img_numpy(z_decode, trainer.data_format), [1, scale_factor, scale_factor, 1]))
 
             generated = np.stack(generated).transpose([1, 0, 2, 3, 4])
 
