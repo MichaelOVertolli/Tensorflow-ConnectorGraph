@@ -47,7 +47,8 @@ def GeneratorRCNN(x, input_channel, z_num, repeat_num, hidden_num, data_format):
 
 def GeneratorNSkipCNN(z, hidden_num, output_num, repeat_num, alphas, data_format, reuse):
     with tf.variable_scope("G", reuse=reuse) as vs:
-        x = tf.pad(z, [[0, 0], [0, 0], [3, 3], [3, 3]], 'CONSTANT')
+        x = tf.expand_dims(tf.expand_dims(z, 2), 3)
+        x = tf.pad(x, [[0, 0], [0, 0], [3, 3], [3, 3]], 'CONSTANT')
         x = slim.conv2d(x, hidden_num, 4, 1, padding='VALID', activation_fn=leaky_relu, weights_initializer=var_init(), data_format=data_format)
         x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=leaky_relu, weights_initializer=var_init(),
                         normalizer_fn=slim.unit_norm, normalizer_params={'dim':1, 'epsilon':1e-8}, data_format=data_format)
