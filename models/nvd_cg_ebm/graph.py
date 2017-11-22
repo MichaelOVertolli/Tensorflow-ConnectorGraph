@@ -250,7 +250,7 @@ def build_graph(config):
                                       feeds)
 
             scale_factor = trainer.img_size//x_gens[pos].shape[2]
-            save_image(zoom(denorm_img_numpy(x_gens[pos], [1, scale_factor, scale_factor, 1]), trainer.data_format),
+            save_image(zoom(denorm_img_numpy(x_gens[pos], trainer.data_format), [1., scale_factor, scale_factor, 1.]),
                        os.path.join(trainer.log_dir, '{}_G.png'.format(step)))
 
             #autoencode
@@ -268,7 +268,7 @@ def build_graph(config):
                         feed_dict[CNCN.format(j)+D_IN] = imgs[j]
                 x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLN.format(pos)+DOUT),
                                      feed_dict)
-                save_image(zoom(denorm_img_numpy(x, trainer.data_format), [1, scale_factor, scale_factor, 1]),
+                save_image(zoom(denorm_img_numpy(x, trainer.data_format), [1., scale_factor, scale_factor, 1.]),
                            os.path.join(trainer.log_dir, '{}_D_{}.png'.format(step, k)))
 
 
@@ -283,7 +283,7 @@ def build_graph(config):
                 feeds = dict(feeds)
                 z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(pos)),
                                             feeds)
-                generated.append(zoom(denorm_img_numpy(z_decode, trainer.data_format), [1, scale_factor, scale_factor, 1]))
+                generated.append(zoom(denorm_img_numpy(z_decode, trainer.data_format), [1., scale_factor, scale_factor, 1.]))
 
             generated = np.stack(generated).transpose([1, 0, 2, 3, 4])
 
