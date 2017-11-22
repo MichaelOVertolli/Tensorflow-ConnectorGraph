@@ -3,6 +3,7 @@ from ..errors import FirstInitialization
 import numpy as np
 import os
 from skimage.measure import block_reduce
+from scipy.ndimage import zoom
 from ..subgraph import BuiltSubGraph, SubGraph
 import tensorflow as tf
 from ..model_utils import *
@@ -21,6 +22,7 @@ CQST = 'nvd_train'
 #Inputs
 INPT = '/input:0'
 INPN = '/input{}:0'
+GRIN = '/GR_input:0'
 G_IN = '/gen_input:0'
 D_IN = '/data_input:0'
 O_IN = '/orig_input:0'
@@ -29,6 +31,8 @@ A_IN = '/autoencoded_input:0'
 #Outputs
 OUTP = '/output:0'
 OUTN = '/output{}:0'
+G2OT = '/G2_output:0'
+GROT = '/GR_output:0'
 GOUT = '/gen_output:0'
 DOUT = '/data_output:0'
 
@@ -38,23 +42,39 @@ ALPH = '/alpha{}:0'
 #Variables
 VARS = '/trainable_variables'
 
-connections = []
+#Tensors
+G_TN = '/G_tensors'
+GRTN = '/GR_tensors'
+
+connections = [
+    #from_graph, to_graph, from_conn, to_conn
+    [GENR, LSRV, GENR+G2OT, LSRV+A_IN],
+]
 
 inputs = [
     GENR+INPT,
+    GENR+GRIN,
 ]
 
-outputs = []
+outputs = [
+    GENR+G2OT,
+    GENR+GROT,
+    LSRV+OUTP,
+]
 
 
 def build_graph(config):
     #TODO: fix partial loading of saved variables from this model into partial models
+    connections.append([GENR, LSRV, GENR+OUTN.format(config.repeat_num-1), LSRV+O_IN])
+    
     generator = init_subgraph(GENR, config.mdl_type)
     discriminator = init_subgraph(DISC, config.mdl_type)
+    rev_loss_set = init_subgraph(LSRV, config.lss_type)
 
     conngraph = ConnectorGraph(config)
     conngraph.add_subgraph(generator)
     conngraph.add_subgraph(discriminator)
+    conngraph.add_subgraph(rev_loss_set)
     
     for i in range(config.repeat_num):
         gloss = init_subgraph(LSGN.format(i), config.lss_type)
@@ -98,6 +118,10 @@ def build_graph(config):
         step = tf.Variable(0, name='step', trainable=False)
         
         with tf.variable_scope('cqs_train'):
+
+            gr_loss = sess.graph.get_tensor_by_name(LSRV+OUTP)
+            gr_loss = tf.identity(gr_loss, name='gr_loss')
+            
             d_losses = []
             g_losses = []
             for i in range(config.repeat_num):
@@ -110,26 +134,31 @@ def build_graph(config):
 
             d_mean = tf.reduce_mean(tf.stack(d_losses))
             g_mean = tf.reduce_mean(tf.stack(g_losses))
+            
             k_t = tf.Variable(0., trainable=False, name='k_t')
-
+            
             d_out = d_mean - k_t * g_mean
             d_out = tf.identity(d_out, name='d_loss_out')
             g_out = tf.identity(g_mean, name='g_loss_out')
 
-            g_lr = tf.Variable(config.g_lr, name='g_lr')
             d_lr = tf.Variable(config.d_lr, name='d_lr')
+            g_lr = tf.Variable(config.g_lr, name='g_lr')
+            gr_lr = tf.Variable(config.gr_lr, name='gr_lr')
 
-            g_lr_update = tf.assign(g_lr, tf.maximum(g_lr * 1.0, config.lr_lower_boundary), name='g_lr_update')
             d_lr_update = tf.assign(d_lr, tf.maximum(d_lr * 1.0, config.lr_lower_boundary), name='d_lr_update')
+            g_lr_update = tf.assign(g_lr, tf.maximum(g_lr * 1.0, config.lr_lower_boundary), name='g_lr_update')
+            gr_lr_update = tf.assign(gr_lr, tf.maximum(gr_lr * 1.0, config.lr_lower_boundary), name='gr_lr_update')
 
-            g_optimizers = [tf.train.AdamOptimizer(g_lr) for i in range(config.repeat_num)]
             d_optimizer = tf.train.AdamOptimizer(d_lr)
+            g_optimizer = tf.train.AdamOptimizer(g_lr)
+            gr_optimizer = tf.train.AdamOptimizer(gr_lr)
 
-            g_optim = tf.case(
-                [(tf.less(step, 2*config.alpha_update_steps*(i+1)),
-                  lambda: g_optimizers[i].minimize(g_losses[i], global_step=step, var_list=tf.get_collection(GENR+VARS)))
-                 for i in range(config.repeat_num)]
-            )
+            g_optim = g_optimizer.minimize(g_mean, global_step=step, var_list=conngraph.get_all_variables(
+                conngraph.tensors_to_names(
+                    tf.get_collection(GENR+G_TN))))
+            gr_optim = gr_optimizer.minimize(gr_loss, var_list=conngraph.get_all_variables(
+                conngraph.tensors_to_names(
+                    tf.get_collection(GENR+GRTN))))
             d_optim = d_optimizer.minimize(d_out, var_list=tf.get_collection(DISC+VARS))
 
             balance = config.gamma * d_mean - g_mean
@@ -140,13 +169,21 @@ def build_graph(config):
                 k_update = tf.assign(k_t, tf.clip_by_value(k_t + config.lambda_k * balance, 0, 1))
                 k_update = tf.identity(k_update, name='k_update')
 
+            with tf.control_dependencies([d_optim, g_optim, gr_optim]):
+                k_update2 = tf.assign(k_t, tf.clip_by_value(k_t + config.lambda_k * balance, 0, 1))
+                k_update2 = tf.identity(k_update2, name='k_update2')
+
             summaries = [
+                tf.summary.image('GR', denorm_img(sess.graph.get_tensor_by_name(GENR+G2OT), config.data_format)),
+                
                 tf.summary.scalar('loss/d_out', d_out),
                 tf.summary.scalar('loss/g_out', g_out),
+                tf.summary.scalar('loss/gr_loss', gr_loss),
 
                 tf.summary.scalar('misc/measure', measure),
                 tf.summary.scalar('misc/k_t', k_t),
                 tf.summary.scalar('misc/g_lr', g_lr),
+                tf.summary.scalar('misc/gr_lr', gr_lr),
                 tf.summary.scalar('misc/d_lr', d_lr),
                 tf.summary.scalar('misc/balance', balance),
             ]
@@ -177,12 +214,16 @@ def build_graph(config):
         sess.graph.clear_collection('outputs')
         tf.add_to_collection('outputs_interim', d_out)
         tf.add_to_collection('outputs_interim', g_out)
+        tf.add_to_collection('outputs_interim', gr_loss)
         tf.add_to_collection('outputs_interim', k_t)
         tf.add_to_collection('outputs_interim', summary_op)
         tf.add_to_collection('outputs', k_update)
         tf.add_to_collection('outputs', measure)
+        tf.add_to_collection('outputs2', k_update2)
+        tf.add_to_collection('outputs2', measure)
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
+        tf.add_to_collection('outputs_lr', gr_lr_update)
         tf.add_to_collection('summary', summary_op)
 
         def get_feed_dict(self, trainer):
@@ -209,6 +250,8 @@ def build_graph(config):
                 self.alphas_feed.append((GENR+ALPH.format(i), num))
             feeds.extend(self.alphas_feed)
             feed_dict = dict(feeds)
+            if step == 1000:
+                trainer.output_fdict = dict([(var.name, var) for var in trainer.c_graph.graph.get_collection('outputs2')])
             return feed_dict
         
         conngraph.attach_func(get_feed_dict)
@@ -231,7 +274,7 @@ def build_graph(config):
                     feeds.append((CNCN.format(j)+D_IN, img_))
                 self.feed_dict_ = dict(feeds)
 
-            i = np.min([step // int(config.alpha_update_steps*2), config.repeat_num-1])
+            pos = np.min([step // int(config.alpha_update_steps*2), config.repeat_num-1])
 
             #generate
             feeds = [(GENR+INPT, self.z_fixed)]
@@ -240,26 +283,32 @@ def build_graph(config):
             x_gens = trainer.sess.run([trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(j))
                                        for j in range(config.repeat_num)],
                                       feeds)
-            
-            save_image(denorm_img_numpy(x_gens[i], trainer.data_format),
+
+            scale_factor = trainer.img_size//x_gens[pos].shape[2]
+            save_image(zoom(denorm_img_numpy(x_gens[pos], trainer.data_format), [1., scale_factor, scale_factor, 1.]),
                        os.path.join(trainer.log_dir, '{}_G.png'.format(step)))
+
+            x_genR = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+G2OT),
+                                      feeds)
+            save_image(denorm_img_numpy(x_genR, trainer.data_format),
+                       os.path.join(trainer.log_dir, '{}_GR.png'.format(step)))
 
             #autoencode
             for k, imgs in (('real', [self.x_fixed]), ('gen', x_gens)):
                 if imgs is None:
                     continue
-                for i, img in enumerate(imgs):
+                for j, img in enumerate(imgs):
                     if img.shape[3] in [1, 3]:
-                        imgs[i] = img.transpose([0, 3, 1, 2])
+                        imgs[j] = img.transpose([0, 3, 1, 2])
                 feed_dict = [_ for _ in self.feed_dict_.items()]
                 feed_dict.extend(self.alphas_feed)
                 feed_dict = dict(feed_dict)
                 if k == 'gen':
                     for j in range(config.repeat_num):
                         feed_dict[CNCN.format(j)+D_IN] = imgs[j]
-                x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLN.format(i)+DOUT),
+                x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(SPLN.format(pos)+DOUT),
                                      feed_dict)
-                save_image(denorm_img_numpy(x, trainer.data_format),
+                save_image(zoom(denorm_img_numpy(x, trainer.data_format), [1., scale_factor, scale_factor, 1.]),
                            os.path.join(trainer.log_dir, '{}_D_{}.png'.format(step, k)))
 
 
@@ -272,16 +321,16 @@ def build_graph(config):
                 feeds = [(GENR+INPT, z)]
                 feeds.extend(self.alphas_feed)
                 feeds = dict(feeds)
-                z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(i)),
+                z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(GENR+OUTN.format(pos)),
                                             feeds)
-                generated.append(denorm_img_numpy(z_decode, trainer.data_format))
+                generated.append(zoom(denorm_img_numpy(z_decode, trainer.data_format), [1., scale_factor, scale_factor, 1.]))
 
             generated = np.stack(generated).transpose([1, 0, 2, 3, 4])
 
             all_img_num = np.prod(generated.shape[:2])
             batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
             save_image(batch_generated, os.path.join(trainer.log_dir, '{}_interp_G.png'.format(step)), nrow=10)
-
+            
         conngraph.attach_func(send_outputs)
         
     return conngraph

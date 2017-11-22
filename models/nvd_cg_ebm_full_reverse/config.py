@@ -73,6 +73,7 @@ def config(type_):
     config.base_size = 8
     config.g_lr = 8e-5
     config.d_lr = 8e-5
+    config.gr_lr = 8e-5
     config.lr_lower_boundary = 2e-5
     config.lambda_k = 0.001
     config.alpha_update_steps = 40000
