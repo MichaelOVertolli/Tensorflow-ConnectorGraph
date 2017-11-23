@@ -43,10 +43,16 @@ or you can use your own dataset by placing images like:
         ├── yyy.jpg
         └── ...
 
-For the original BEGAN model, edit the `LSS_TYPE` in `models/cqs_cg/graph.py` to `'began'`
+For the original BEGAN model, enter the following in a python interpreter in the ConnectorGraph folder:
 
-Then, in a python interpreter import miain from main.py and run it.
+    from main import *
+    t = main(model='cqs_cg', type_='began_b16_z128_sz64_h128_g0.5')
 
+For multiple GPU setups, manually select which GPU you would like to use using the following Bash command:
+
+    export CUDA_VISIBLE_DEVICES=#
+
+Set '#' to the index of the desired device.
 
 ...More details to come...
 
