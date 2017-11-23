@@ -126,4 +126,9 @@ Session.vim
 # auto-generated tag files
 tags
 
+# Graphs
+graph_*.meta
+graph_*.index
+graph_*.data*
+
 # End of https://www.gitignore.io/api/python,vim
