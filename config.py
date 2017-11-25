@@ -1,3 +1,20 @@
+###############################################################################
+#Copyright (C) 2017  Michael O. Vertolli michaelvertolli@gmail.com
+#
+#This program is free software: you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation, either version 3 of the License, or
+#(at your option) any later version.
+#
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+#
+#You should have received a copy of the GNU General Public License
+#along with this program.  If not, see http://www.gnu.org/licenses/
+###############################################################################
+
 #-*- coding: utf-8 -*-
 import argparse
 
@@ -14,61 +31,32 @@ def add_argument_group(name):
 
 # Network
 net_arg = add_argument_group('Network')
-net_arg.add_argument('--input_scale_size', type=int, default=128,
-                     help='input image will be resized with the given value as width and height')
+net_arg.add_argument('--image_size', type=int, default=64, choices=[64, 128])
 net_arg.add_argument('--conv_hidden_num', type=int, default=128,
-                     choices=[64, 128],help='n in the paper')
-net_arg.add_argument('--z_num', type=int, default=256, choices=[64, 128, 256])
+                     choices=[128, 256],help='The number of convolutional filters.')
+net_arg.add_argument('--z_num', type=int, default=128, choices=[128])
+net_arg.add_argument('--loss_type', type=str, default='began', choices=['began',
+                                                                        'began_gmsm',
+                                                                        'began_gmsm_chrom',
+                                                                        'scaled_began_gmsm',
+                                                                        'scaled_began_gmsm_chrom'])
 
 # Data
 data_arg = add_argument_group('Data')
-data_arg.add_argument('--dataset', type=str, default='CelebA')
-data_arg.add_argument('--split', type=str, default='train')
-data_arg.add_argument('--batch_size', type=int, default=16)
-data_arg.add_argument('--grayscale', type=str2bool, default=False)
-data_arg.add_argument('--num_worker', type=int, default=4)
+data_arg.add_argument('--data_folder', type=str, default='CelebA')
+data_arg.add_argument('--train', type=str2bool, default=True)
+data_arg.add_argument('--batch_size', type=int, default=16, choices=[16])
 
 # Training / test parameters
 train_arg = add_argument_group('Training')
-train_arg.add_argument('--is_train', type=str2bool, default=True)
-train_arg.add_argument('--optimizer', type=str, default='adam')
-train_arg.add_argument('--max_step', type=int, default=300001)
-train_arg.add_argument('--lr_update_step', type=int, default=100000, choices=[100000, 75000])
-train_arg.add_argument('--d_lr', type=float, default=8e-5)
-train_arg.add_argument('--g_lr', type=float, default=8e-5)
-train_arg.add_argument('--g_r_lr', type=float, default=8e-5)
-train_arg.add_argument('--lr_lower_boundary', type=float, default=2e-5)
-train_arg.add_argument('--beta1', type=float, default=0.5)
-train_arg.add_argument('--beta2', type=float, default=0.999)
-train_arg.add_argument('--gamma', type=float, default=0.7)
-train_arg.add_argument('--lambda_k', type=float, default=0.001)
-train_arg.add_argument('--l1weight', type=float, default=1.0)
-train_arg.add_argument('--gmsweight', type=float, default=0.0)
-train_arg.add_argument('--chromeweight', type=float, default=0.0)
-train_arg.add_argument('--use_gpu', type=str2bool, default=True)
-train_arg.add_argument('--which_gpu', type=str, default='1')
+train_arg.add_argument('--gamma', type=float, default=0.7, choices=[0.5, 0.7])
 
 # Misc
 misc_arg = add_argument_group('Misc')
-misc_arg.add_argument('--model_tag', type=str, default='BEGAN')
-misc_arg.add_argument('--load_path', type=str, default='')
-misc_arg.add_argument('--log_step', type=int, default=50)
-misc_arg.add_argument('--save_step', type=int, default=5000)
-misc_arg.add_argument('--num_log_samples', type=int, default=3)
-misc_arg.add_argument('--log_level', type=str, default='INFO', choices=['INFO', 'DEBUG', 'WARN'])
-misc_arg.add_argument('--log_dir', type=str, default='logs')
-misc_arg.add_argument('--data_dir', type=str, default='data')
-misc_arg.add_argument('--test_data_path', type=str, default=None,
-                      help='directory with images which will be used in test sample generation')
-misc_arg.add_argument('--sample_per_image', type=int, default=64,
-                      help='# of sample per image during test sample generation')
-misc_arg.add_argument('--random_seed', type=int, default=123)
+misc_arg.add_argument('--model_tag', type=str, default='nvd_cg_ebm_full_reverse')
+misc_arg.add_argument('--log_folder', type=str, default=None)
+misc_arg.add_argument('--save_subgraphs', type=str2bool, default=True)
 
 def get_config():
     config, unparsed = parser.parse_known_args()
-    if config.use_gpu:
-        data_format = 'NCHW'
-    else:
-        data_format = 'NHWC'
-    setattr(config, 'data_format', data_format)
     return config, unparsed

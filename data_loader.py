@@ -2,7 +2,7 @@ import os
 from PIL import Image
 from glob import glob
 import tensorflow as tf
-from nriqa import toyiq
+from models.friqa import toyiq
 
 def get_loader(root, batch_size, scale_size, data_format, split=None, is_grayscale=False, seed=None):
     dataset_name = os.path.basename(root)
