@@ -23,31 +23,28 @@ from .. import models
 def build_graph(model_name, config):
     sizes = [min(2**(config.max_dist-i), config.hidden_num) for i in range(config.repeat_num)]
     scopes = ['D'+str(i) for i in range(config.repeat_num)]
+    alphas = [tf.placeholder(tf.float32, (), name='alpha'+str(i)) for i in range(config.repeat_num-1)]
+    for alpha in alphas:
+        tf.add_to_collection('inputs', alpha)
     D_ins = []
-    with tf.variable_scope('D_base') as base_vs:
-        for i in range(config.repeat_num):
-            x = tf.placeholder(tf.float32, [None, config.output_num,
-                                            config.base_size*(2**i),
-                                            config.base_size*(2**i)],
-                               name='_'.join(['input', str(i)]))
-            tf.add_to_collection('inputs', x)
-            D_ins.append(models.slim.conv2d(x, sizes[i], 3, 1, activation_fn=models.leaky_relu,
-                                            weights_initializer=models.var_init(),
-                                            data_format=config.data_format))
-    base_vars = tf.contrib.framework.get_variables(base_vs)
-    base_vars.reverse()
+    for i in range(config.repeat_num):
+        x = tf.placeholder(tf.float32, [None, config.output_num,
+                                        config.base_size*(2**i),
+                                        config.base_size*(2**i)],
+                           name='_'.join(['input', str(i)]))
+        tf.add_to_collection('inputs', x)
+        D_ins.append(x)
     D_ins.reverse()
     sizes.reverse()
     len_scopes = len(scopes)
     for i, cur_scope in enumerate(scopes):
         scopes_ = scopes[::-1][len_scopes-(i+1):] #we build the discriminators in reverse order
         sizes_ = sizes[len_scopes-(i+1):]
-        D_ins_ = D_ins[len_scopes-(i+1):]
-        D_out, variables = models.DiscriminatorNSkipCNN(D_ins_, sizes_, scopes_, cur_scope,
+        D_in = D_ins[len_scopes-(i+1)]
+        D_out, variables = models.DiscriminatorNSkipCNN(D_in, sizes_, scopes_, alphas, cur_scope,
                                                         config.hidden_num, config.data_format)
         D_out = tf.identity(D_out, name='output'+str(i))
         tf.add_to_collection('outputs', D_out)
-        variables.extend(base_vars[:2*(i+1)]) #adds the relevant
         for variable in variables:
             tf.add_to_collection(cur_scope+'_tensors', variable)
     

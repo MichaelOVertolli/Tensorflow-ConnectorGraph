@@ -71,7 +71,7 @@ def config(type_):
     else:
         raise ConfigError('Invalid config type: {}.'.format(type_))
 
-    config.repeat_num = int(np.log2(config.size)) - 2
+    config.repeat_num = int(np.log2(config.size)) - 1
     config.name = type_
 
     return config

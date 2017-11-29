@@ -21,27 +21,29 @@ from .. import models
 
 
 def build_graph(model_name, config):
+    #need to recheck layer depth
     alphas = [tf.placeholder(tf.float32, (), name='alpha'+str(i)) for i in range(config.repeat_num-1)]
     G_in = tf.placeholder(tf.float32, [None, config.z_num], name='input')
-    G0_outs, G0_vars = models.GeneratorNSkipCNN(G_in,
+    Glast_out, Glast_vars = models.GeneratorNSkipCNN(G_in,
                                                 config.hidden_num, config.output_num,
                                                 config.repeat_num, alphas,
                                                 config.data_format, False)
-    G_outs, G_vars = [G0_outs], [G0_vars]
-    for i in range(1, config.repeat_num-1):
-        temp_outs, temp_vars = models.GeneratorNSkipCNN(G_in,
-                                                        config.hidden_num, config.output_num,
-                                                        i, alphas, config.data_format, True)
-        G_outs.append(temp_outs)
+    G_outs, G_vars = [], []
+    for i in range(1, config.repeat_num):
+        temp_out, temp_vars = models.GeneratorNSkipCNN(G_in,
+                                                       config.hidden_num, config.output_num,
+                                                       i, alphas, config.data_format, True)
+        G_outs.append(temp_out)
         G_vars.append(temp_vars)
+    G_outs.append(Glast_out)
+    G_vars.append(Glast_vars)
         
     for alpha in alphas:
         tf.add_to_collection('inputs', alpha)
     tf.add_to_collection('inputs', G_in)
     for j, G_out in enumerate(G_outs):
-        for i in range(len(G_out)):
-            temp = tf.identity(G_out[i], name='_'.join(['output', str(j), str(i)]))
-            tf.add_to_collection('outputs', temp)
+        temp = tf.identity(G_out, name=''.join(['output', str(j)]))
+        tf.add_to_collection('outputs', temp)
     saver = tf.train.Saver()
     return saver
 
