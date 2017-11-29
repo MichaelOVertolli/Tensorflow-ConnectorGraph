@@ -39,7 +39,8 @@ net_arg.add_argument('--loss_type', type=str, default='began', choices=['began',
                                                                         'began_gmsm',
                                                                         'began_gmsm_chrom',
                                                                         'scaled_began_gmsm',
-                                                                        'scaled_began_gmsm_chrom'])
+                                                                        'scaled_began_gmsm_chrom',
+                                                                        'scaled_began_gmsm_halfchrom'])
 
 # Data
 data_arg = add_argument_group('Data')

@@ -26,7 +26,11 @@ G_5 = 'g0.5'
 G_7 = 'g0.7'
 #lss_type
 BEGAN = 'began'
+BEGAN_GMSM = 'began_gmsm'
+BEGAN_GMSM_CHROM = 'began_gmsm_chrom'
 SCALED_BEGAN_GMSM = 'scaled_began_gmsm'
+SCALED_BEGAN_GMSM_CHROM = 'scaled_began_gmsm_chrom'
+SCALED_BEGAN_GMSM_HALFCHROM = 'scaled_began_gmsm_halfchrom'
 #mdl_type
 Z128_SZ64 = 'z128_sz64'
 Z256_SZ64 = 'z256_sz64'
@@ -51,8 +55,16 @@ def config(type_):
         config.gamma = 0.7
     else:
         raise ConfigError('Invalid config type {} for gamma.'.format(type_))
-    if SCALED_BEGAN_GMSM in type_:
+    if SCALED_BEGAN_GMSM_HALFCHROM in type_:
+        config.lss_type = SCALED_BEGAN_GMSM_HALFCHROM
+    elif SCALED_BEGAN_GMSM_CHROM in type_:
+        config.lss_type = SCALED_BEGAN_GMSM_CHROM
+    elif SCALED_BEGAN_GMSM in type_:
         config.lss_type = SCALED_BEGAN_GMSM
+    elif BEGAN_GMSM_CHROM in type_:
+        config.lss_type = BEGAN_GMSM_CHROM
+    elif BEGAN_GMSM in type_:
+        config.lss_type = BEGAN_GMSM
     elif BEGAN in type_:
         config.lss_type = BEGAN
     else:

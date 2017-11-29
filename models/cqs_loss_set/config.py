@@ -25,6 +25,7 @@ BEGAN_GMSM = 'began_gmsm'
 BEGAN_GMSM_CHROM = 'began_gmsm_chrom'
 SCALED_BEGAN_GMSM = 'scaled_began_gmsm'
 SCALED_BEGAN_GMSM_CHROM = 'scaled_began_gmsm_chrom'
+SCALED_BEGAN_GMSM_HALFCHROM = 'scaled_began_gmsm_halfchrom'
 
 
 def config(type_):
@@ -50,6 +51,10 @@ def config(type_):
         config.l1weight = 2.0
         config.gmsweight = 1.0
         config.chromweight = 1.0
+    elif type_ == SCALED_BEGAN_GMSM_HALFCHROM:
+        config.l1weight = 2.0
+        config.gmsweight = 1.0
+        config.chromweight = 0.5
     else:
         raise ConfigError('Invalid config type: {}.'.format(type_))
 
