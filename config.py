@@ -31,11 +31,12 @@ def add_argument_group(name):
 
 # Network
 net_arg = add_argument_group('Network')
-net_arg.add_argument('--image_size', type=int, default=64, choices=[64, 128])
+net_arg.add_argument('--image_size', type=int, default=64, choices=[64, 128, 256, 512, 1024])
 net_arg.add_argument('--conv_hidden_num', type=int, default=128,
-                     choices=[128, 256],help='The number of convolutional filters.')
-net_arg.add_argument('--z_num', type=int, default=128, choices=[128])
-net_arg.add_argument('--loss_type', type=str, default='began', choices=['began',
+                     choices=[128, 256, 512],help='The number of convolutional filters.')
+net_arg.add_argument('--z_num', type=int, default=128, choices=[128, 512])
+net_arg.add_argument('--loss_type', type=str, default='began', choices=['',
+                                                                        'began',
                                                                         'began_gmsm',
                                                                         'began_gmsm_chrom',
                                                                         'scaled_began_gmsm',

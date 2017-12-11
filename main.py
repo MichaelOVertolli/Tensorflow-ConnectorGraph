@@ -21,7 +21,7 @@ from trainer_config import config
 import tensorflow as tf
 
 
-def main(model='nvd_cg_ebm_full_reverse', type_='scaled_began_gmsm_b16_z128_sz64_h128_g0.7',
+def main(model='res_cg_iwass', type_='began_b16_z128_sz64_h128_g0.7_relu_pconv_wxav_iwas',
          data_folder='CelebA', log_folder=None, train=True, save_subgraphs=True):
     """Builds, trains and returns the trainer object.
 

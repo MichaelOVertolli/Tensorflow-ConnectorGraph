@@ -22,7 +22,7 @@ from .. import friqa
 from ..null_variable import make_null_variable
 
 
-def build_graph(model_name, config):
+def build_graph(config):
     
     orig = tf.placeholder(tf.float32, [None, None, None, None],
                           name='orig_input')

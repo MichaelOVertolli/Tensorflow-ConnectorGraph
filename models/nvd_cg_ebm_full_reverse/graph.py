@@ -24,7 +24,7 @@ from scipy.ndimage import zoom
 from ..subgraph import BuiltSubGraph, SubGraph
 import tensorflow as tf
 from ..model_utils import *
-
+import time
 
 #Models
 GENR = 'nvd_generator_loop_0'

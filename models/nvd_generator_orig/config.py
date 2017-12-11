@@ -27,6 +27,9 @@ Z512_SZ64 = 'z512_sz64'
 Z1024_SZ64 = 'z1024_sz64'
 Z2048_SZ64 = 'z2048_sz64'
 Z256_SZ128 = 'z256_sz128'
+Z512_SZ64 = 'z512_sz64'
+Z512_SZ256 = 'z512_sz256'
+Z512_SZ512 = 'z512_sz512'
 Z512_SZ1024 = 'z512_sz1024'
 H128 = 'h128'
 H256 = 'h256'
@@ -57,6 +60,15 @@ def config(type_):
     elif Z256_SZ128 in type_:
         config.z_num = 256
         config.size = 128
+    elif Z512_SZ64 in type_:
+        config.z_num = 512
+        config.size = 64
+    elif Z512_SZ256 in type_:
+        config.z_num = 512
+        config.size = 256
+    elif Z512_SZ512 in type_:
+        config.z_num = 512
+        config.size = 512
     elif Z512_SZ1024 in type_:
         config.z_num = 512
         config.size = 1024

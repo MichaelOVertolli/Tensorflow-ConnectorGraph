@@ -20,7 +20,7 @@ import tensorflow as tf
 from .. import models
 
 
-def build_graph(model_name, config):
+def build_graph(config):
     D_in = tf.placeholder(tf.float32, [None, config.output_num, config.size, config.size], name='input')
     D_out, D_z, D_vars = models.DiscriminatorCNN(D_in,
                                                  config.output_num, config.z_num,

@@ -20,7 +20,7 @@ import tensorflow as tf
 from .. import models
 
 
-def build_graph(model_name, config):
+def build_graph(config):
     #need to recheck layer depth
     alphas = [tf.placeholder(tf.float32, (), name='alpha'+str(i)) for i in range(config.repeat_num-1)]
     G_in = tf.placeholder(tf.float32, [None, config.z_num], name='input')
@@ -44,6 +44,8 @@ def build_graph(model_name, config):
     for j, G_out in enumerate(G_outs):
         temp = tf.identity(G_out, name=''.join(['output', str(j)]))
         tf.add_to_collection('outputs', temp)
+        for G_var in G_vars[j]:
+            tf.add_to_collection(''.join(['G', str(j), '_tensors']), G_var)
     saver = tf.train.Saver()
     return saver
 

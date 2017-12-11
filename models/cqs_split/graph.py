@@ -19,7 +19,7 @@ import tensorflow as tf
 from ..null_variable import *
 
 
-def build_graph(model_name, config):
+def build_graph(config):
     inpt = tf.placeholder(tf.float32, [None, None, None, None], name='input')
     data, gen = tf.split(inpt, 2)
     data = tf.identity(data, name='data_output')

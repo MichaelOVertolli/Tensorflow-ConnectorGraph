@@ -20,7 +20,7 @@ import tensorflow as tf
 from .. import models
 
 
-def build_graph(model_name, config):
+def build_graph(config):
     # alphas = [tf.Variable(0.1, trainable=False, name='alpha'+str(i), dtype=tf.float32)
     #           for i in range(config.repeat_num-1)]
     alphas = [tf.placeholder(tf.float32, (), name='alpha'+str(i)) for i in range(config.repeat_num-1)]

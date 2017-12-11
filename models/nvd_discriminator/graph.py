@@ -20,7 +20,7 @@ import tensorflow as tf
 from .. import models
 
 
-def build_graph(model_name, config):
+def build_graph(config):
     D_ins = [tf.placeholder(tf.float32, [None, config.output_num,
                                          config.base_size*(2**i),
                                          config.base_size*(2**i)],
