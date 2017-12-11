@@ -30,9 +30,25 @@ DATA_DIR = './data/'
 
 
 class Runner(object):
-    def __init__(self, frozen_graphs, log_folder,
-                 data_name='CelebA', batch_size=16, z_num=128,
-                 img_size=64, data_format='NCHW'):
+    def __init__(self, frozen_graphs, log_folder, data_name='CelebA',
+                 batch_size=16, z_num=128, img_size=64, data_format='NCHW'):
+        """Initialize Tensorflow backend for pre-trained GAN FrozenGraph runs
+
+        Arguments:
+        frozen_graphs := (list of FrozenGraphs) FrozenGraph objects that will
+                         be loaded into the graph to be run
+        log_folder    := (str) logging folder in ./logs 
+        data_name     := (str) data set folder in ./data for loading real data
+        batch_size    := (int) size of the batch for processing
+        z_num         := (int) size of the random input vector for GANs
+        img_size      := (int) size of the input images
+        data_format   := (str) format of the data (GPU is NCHW)
+
+        Public functions:
+        get_image_from_loader()
+        save_image(img, name, data_format)
+
+        """
         self.log_dir = os.path.join(LOGS_DIR, log_folder)
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
@@ -74,13 +90,23 @@ class Runner(object):
 
 
     def get_image_from_loader(self):
+        """Pulls data from the dataset."""
         x = self.data_loader.eval(session=self.sess)
         return norm_img(x)
 
 
     def save_img(self, img, name, data_format='NCHW'):
+        """Saves a batch of images.
+
+        Arguments:
+        img         := (numpy array) a batch of images
+        name        := (str) the name for the image file to be saved in log_folder
+        data_format := (str) the format for the input data 
+
+        """
         save_image(denorm_img_numpy(img, 'NCHW'), os.path.join(self.log_dir, name))
 
 
 def get_time():
+    """Returns a time string for folder uniqueness."""
     return datetime.now().strftime("%m%d_%H%M%S")

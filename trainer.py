@@ -43,7 +43,7 @@ class Trainer(object):
         self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
         if log_folder is None:
-            log_folder = '_'.join([model_name, model_type, get_time()])
+            log_folder = '_'.join([data_name, model_name, model_type, get_time()])
         self.log_dir = os.path.join(LOGS_DIR, log_folder)
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)

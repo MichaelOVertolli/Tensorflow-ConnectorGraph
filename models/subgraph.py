@@ -25,7 +25,40 @@ SUBGRAPH_STR = "Model:\t{}\nInputs:\t{}\nOutputs\t{}\n"
 
 
 class SubGraph(object):
+    """A Tensorflow graph component that is used to build ConnectorGraphs.
+
+    The basic unit of ConnectorGraph. This class outlines the key structures
+    that make up a SubGraph. Generally, this class is only used for small sets of
+    Tensorflow Ops that are not worth constructing a BuiltSubGraph for.
+    However, it is often better to just build a BuiltSubGraph instead.
+
+    Properties:
+    name         := (str) the name of the Subgraph object.
+    config_type  := (str) a string of the config type.
+    inputs       := (dict) indexes input tensors by name
+    input_names  := (list) all input tensor names
+    outputs      := (dict) indexes output tensors by name 
+    output_names := (list) all output tensor names
+    collections  := (list) the keys of the Tensorflow graphs collections
+
+    Public functions:
+    __eq__(other)
+    __str__()
+    restore(model_name, config_type, sess, input_map)
+
+    """
     def __init__(self, name, config_type, graph):
+        """Initializes the base SubGraph object.
+       
+        Arguments:
+        name        := (str) the unique name of the SubGraph object. Convention is
+                       "folder_name"+"_#" where # is some numeric string to make 
+                       names unique. However, this is not required for the base class.
+        config_type := (str) a string specifying the config type for this SubGraph
+                       object.
+        graph       := (tf.Graph) the graph object that this SubGraph represents.
+
+        """
         self.name = name
         self.config_type = config_type
         self.graph = graph
@@ -40,6 +73,13 @@ class SubGraph(object):
         self.collections = [key for key in self.graph.get_all_collection_keys()]
 
     def __eq__(self, other):
+        """Duck-typing equality checking for SubGraphs
+
+        Assumes that a SubGraph can be equality checked with anything
+        that has a name property. Objects with the same name are considered
+        equal.
+
+        """
         try:
             return self.name == other.name
         except AttributeError:
@@ -47,17 +87,37 @@ class SubGraph(object):
 
 
     def __str__(self):
+        """Outputs a string of key properties of the SubGraph.
+
+        Model: self.name
+        Inputs: self.input_names
+        Outputs: self.output_names
+
+        """
         return SUBGRAPH_STR.format(self.name+self.config_type,
                                    ', '.join(self.input_names),
                                    ', '.join(self.output_names))
 
 
     def restore(self, model_name, config_type, sess, input_map=None):
+        """Imports the SubGraph into the graph of the session.
+
+        Arguments:
+        model_name  := (str) usually self.name
+        config_type := (str) usually self.config_type
+        sess        := (tf.Session) the session that will be used
+                       to import the graph into.
+        input_map   := (dict) maps input names (as strings) in this SubGraph
+                       to Tensorflow Tensor objects. The values of the named
+                       input tensors in the imported graph will be re-mapped
+                       to the respective tensor values.
+
+        """
         if self.collections:
             raise InvalidSubGraphError('Base SubGraph cannot have collections. ' +
                                        'Consider using BuiltSubGraph.')
         else:
-            tf.import_graph_def(self.frozen_graph_def,
+            tf.import_graph_def(self.graph.as_graph_def(),
                                 input_map=input_map,
                                 name=model_name)
 
@@ -71,13 +131,51 @@ CHKPNT = 'checkpoint'
 
 
 class BuiltSubGraph(SubGraph):
+    """A subclass of SubGraph that builds, saves and loads SubGraphs.
+
+    Allows SubGraphs to be saved, re-used, and shared.
+
+    Inherited properties:
+    name         := (str) the name of the Subgraph object.
+    config_type  := (str) a string of the config type.
+    inputs       := (dict) indexes input tensors by name
+    input_names  := (list) all input tensor names
+    outputs      := (dict) indexes output tensors by name 
+    output_names := (list) all output tensor names
+    collections  := (list) the keys of the Tensorflow graphs collections
+
+    Properties:
+    log_dir := (str) the folder in ./logs where a pre-trained version
+               of this SubGraph is saved. None if not loading a pre-trained
+               model.
+    path    := (str) the path to the model builder and saved files of generic model
+    saver   := (tf.Saver) the saver object for SubGraphs graph
+
+    Public functions:
+    restore(model_name, config_type, sess, input_map)
+    freeze(sess)    
+
+    Private functions:
+    build(model_name, config_type, sess)
+    graph_is_built(model_name, config_type)
+    strip_names(names)
+    get_module_name(model_name)
+
+    """
     def __init__(self, model_name, config_type, session, log_dir=None):
-        """Initializes a SubGraph object from model name and a session object.
+        """Initializes a BuiltSubGraph object.
+
+        Throws FirstInitialization error if BuiltSubGraph has never been
+        built before. BuiltSubGraph needs to be re-initialized in that case.
 
         Arguments:
-        model_name  := (string) unique folder name of model in models' folder
-        config_type := (string) specifies which set of config parameters to use
+        model_name  := (str) the unique name of the SubGraph object. Convention is
+                       "folder_name"+"_#" where # is some numeric string to make 
+                       names unique. However, this is not required for the base class.
+        config_type := (str) a string specifying the config type for this SubGraph
+                       object.
         session     := (tf.Session) a reference to a session object with an empty Graph
+        log_dir     := (str) the folder to load a pre-trained BuiltSubGraph
 
         """
         if session.graph.version != 0:
@@ -97,16 +195,37 @@ class BuiltSubGraph(SubGraph):
 
 
     def build(self, model_name, config_type, sess):
+        """Builds the graph of this BuiltSubGraph
+
+        Arguments:
+        model_name  := (str) the unique name of the SubGraph object. Convention is
+                       "folder_name"+"_#" where # is some numeric string to make 
+                       names unique. However, this is not required for the base class.
+        config_type := (str) a string specifying the config type for this SubGraph
+                       object.
+        session     := (tf.Session) a reference to a session object with an empty Graph
+
+        """
         module_name = self.get_module_name(model_name)
         config = import_module(CONFIG_FILE.format(module_name))
         graph_ = import_module(GRAPH_FILE.format(module_name))
-        self.saver = graph_.build_graph(model_name, config.config(config_type))
+        self.saver = graph_.build_graph(config.config(config_type))
         init = tf.variables_initializer(tf.get_collection('variables'))
         sess.run(init)
         self.saver.save(sess, os.path.join(self.path, GRAPH.format(config_type)), write_state=False)
 
 
     def graph_is_built(self, model_name, config_type):
+        """Evaluates if a graph of the given type has already been built.
+
+        Arguments:
+        model_name  := (str) the unique name of the SubGraph object. Convention is
+                       "folder_name"+"_#" where # is some numeric string to make 
+                       names unique. However, this is not required for the base class.
+        config_type := (str) a string specifying the config type for this SubGraph
+                       object.
+
+        """
         module_name = self.get_module_name(model_name)
         self.path = os.path.join(DIR, module_name)
         files = os.listdir(self.path)
@@ -114,10 +233,24 @@ class BuiltSubGraph(SubGraph):
 
 
     def get_module_name(self, model_name):
-        return '_'.join(model_name.split('_')[:-1]) #strips the index (_#) off of the model name
+        """Strips the index (_#) off of the model name."""
+        return '_'.join(model_name.split('_')[:-1])
 
 
     def restore(self, model_name, config_type, sess, input_map=None):
+        """Imports the SubGraph into the graph of the session.
+
+        Arguments:
+        model_name  := (str) usually self.name
+        config_type := (str) usually self.config_type
+        sess        := (tf.Session) the session that will be used
+                       to import the graph into.
+        input_map   := (dict) maps input names (as strings) in this SubGraph
+                       to Tensorflow Tensor objects. The values of the named
+                       input tensors in the imported graph will be re-mapped
+                       to the respective tensor values.
+
+        """
         self.saver = tf.train.import_meta_graph(os.path.join(self.path,
                                                              META.format(config_type)),
                                                 clear_devices=True,
@@ -131,9 +264,20 @@ class BuiltSubGraph(SubGraph):
 
 
     def freeze(self, sess):
-        #designed to be called during initialization
-        #sess must include the graph of this subgraph
-        #self.restore(self.name, self.config_type, sess)
+        """Returns a FrozenSubGraph of this BuiltSubGraph.
+
+        Designed to be called during initialization or during active
+        training. Assumes that the tf.Session includes the graph of
+        this BuiltSubGraph.
+
+        Do not use to build FrozenSubGraphs that already exist. Use
+        frozen.copy() instead.
+
+        Arguments:
+        sess  := (tf.Session) the session that contains the graph of 
+                 this BuiltSubGraph.
+
+        """
         frozen_graph_def = tf.graph_util.convert_variables_to_constants(
             sess,
             sess.graph.as_graph_def(),
@@ -150,6 +294,7 @@ class BuiltSubGraph(SubGraph):
 
 
     def strip_names(self, names):
+        """Removes Tensorflow's tensor index ":#" from a list of tensor names."""
         return [name.split(':')[0] for name in names]
 
 
