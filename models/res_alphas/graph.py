@@ -15,69 +15,21 @@
 #along with this program.  If not, see http://www.gnu.org/licenses/
 ###############################################################################
 
-class Error(Exception):
-    pass
+import numpy as np
+import tensorflow as tf
+from .. import models
+from ..null_variable import make_null_variable
 
 
-class ConfigError(Exception):
-    pass
+def build_graph(config):
+    alphas = [tf.placeholder(tf.float32, (), name='alpha'+str(i)) for i in range(config.repeat_num-1)]
+    for alpha in alphas:
+        tf.add_to_collection('inputs', alpha)
+        tf.add_to_collection('outputs', alpha)
+    make_null_variable()
+    
+    saver = tf.train.Saver()
+    return saver
 
 
-class ConnectionError(Error):
-    pass
 
-
-class MissingSubgraphError(ConnectionError):
-    pass
-
-
-class MissingTensorError(ConnectionError):
-    pass
-
-
-class MissingConnectionError(ConnectionError):
-    pass
-
-
-class ConnectionConflictError(ConnectionError):
-    pass
-
-
-class ExhaustedGraphStepsError(ConnectionError):
-    pass
-
-
-class GraphNotConnectedError(ConnectionError):
-    pass
-
-
-class NoVariableExistsError(ConnectionError):
-    pass
-
-
-class MultipleVariablesExistError(ConnectionError):
-    pass
-
-
-class NoSaversError(ConnectionError):
-    pass
-
-
-class SessionGraphError(Error):
-    pass
-
-
-class SubGraphError(Error):
-    pass
-
-
-class FirstInitialization(SubGraphError):
-    pass
-
-
-class InvalidSubGraphError(SubGraphError):
-    pass
-
-
-class TessellaterError(Error):
-    pass

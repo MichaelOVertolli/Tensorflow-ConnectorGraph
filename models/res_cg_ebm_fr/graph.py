@@ -15,69 +15,23 @@
 #along with this program.  If not, see http://www.gnu.org/licenses/
 ###############################################################################
 
-class Error(Exception):
-    pass
+from ..graphs.converter import convert
+from ..graphs.res_cg_ebm_fr import build
+from ..train_funcs.res_cg_ebm_fr import build_train_ops, build_feed_func, build_send_func
 
 
-class ConfigError(Exception):
-    pass
 
+def build_graph(config):
+    G = build(config)
 
-class ConnectionError(Error):
-    pass
+    conngraph, inputs, outputs = convert(G, config)
+    conngraph.block_index = 0
+    
+    conngraph = build_train_ops(conngraph, inputs, outputs, **G.graph)
 
-
-class MissingSubgraphError(ConnectionError):
-    pass
-
-
-class MissingTensorError(ConnectionError):
-    pass
-
-
-class MissingConnectionError(ConnectionError):
-    pass
-
-
-class ConnectionConflictError(ConnectionError):
-    pass
-
-
-class ExhaustedGraphStepsError(ConnectionError):
-    pass
-
-
-class GraphNotConnectedError(ConnectionError):
-    pass
-
-
-class NoVariableExistsError(ConnectionError):
-    pass
-
-
-class MultipleVariablesExistError(ConnectionError):
-    pass
-
-
-class NoSaversError(ConnectionError):
-    pass
-
-
-class SessionGraphError(Error):
-    pass
-
-
-class SubGraphError(Error):
-    pass
-
-
-class FirstInitialization(SubGraphError):
-    pass
-
-
-class InvalidSubGraphError(SubGraphError):
-    pass
-
-
-class TessellaterError(Error):
-    pass
+    get_feed_dict = build_feed_func(**G.graph)
+    conngraph.attach_func(get_feed_dict)
+    send_outputs = build_send_func(**G.graph)
+    conngraph.attach_func(send_outputs)
+        
+    return conngraph

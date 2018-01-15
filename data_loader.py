@@ -6,7 +6,7 @@ from models.friqa import toyiq
 
 def get_loader(root, batch_size, scale_size, data_format, split=None, is_grayscale=False, seed=None):
     dataset_name = os.path.basename(root)
-    if (dataset_name in ['CelebA', 'lsun', 'msceleb', 'oxfordflower'] or 'imgnet' in dataset_name) and split:
+    if (dataset_name in ['CelebA', 'lsun', 'msceleb', 'oxfordflower', 'grass'] or 'imgnet' in dataset_name) and split:
         root = os.path.join(root, 'splits', split)
 
     for ext in ["jpg", "JPEG", "png"]:
@@ -43,6 +43,8 @@ def get_loader(root, batch_size, scale_size, data_format, split=None, is_graysca
     if dataset_name in ['CelebA']:
         queue = tf.image.crop_to_bounding_box(queue, 50, 25, 128, 128)
         queue = tf.image.resize_nearest_neighbor(queue, [scale_size, scale_size])
+    elif dataset_name in ['grass']:
+        pass
     else:
         queue = tf.image.resize_nearest_neighbor(queue, [scale_size, scale_size])
 
