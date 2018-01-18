@@ -64,8 +64,8 @@ class Runner(object):
         
         with tf.Graph().as_default():
             for fgraph in self.frozen_graphs:
-                fgraph.restore(self.frozen_graph.name,
-                               self.frozen_graph.config_type,
+                fgraph.restore(fgraph.name,
+                               fgraph.config_type,
                                None)
             self.data_loader = get_loader(self.data_dir,
                                           self.batch_size,

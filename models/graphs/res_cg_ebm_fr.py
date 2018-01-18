@@ -23,11 +23,11 @@ import networkx as nx
 GENF = 'res_gen_pair_00'
 BRGF = 'res_bridge_0'
 GENR = 'res_rev_10'
-BRGR = 'res_bridge_2'
+BRGR = 'res_bridge_1'
 DISC = 'res_rev_00'
-BRGD = 'res_bridge_3'
+BRGD = 'res_bridge_2'
 DGEN = 'res_gen_pair_10'
-BRGU = 'res_bridge_4'
+BRGU = 'res_bridge_3'
 REST = 'res_train'
 CNCT = 'cqs_concat_0'
 SPLT = 'cqs_split_0'
@@ -63,6 +63,7 @@ VARIABLES = '/variables'
 def build(config):
     G = nx.DiGraph(
         train_scope='res_train',
+        block_index=0,
         loss_tensors={
             'G': LSSG+OUTP,
             'R': LSSR+OUTP,
@@ -74,7 +75,8 @@ def build(config):
         img_pairs=[
             ('G', BRGF+OUTP),
             ('R', BRGF+OUT2),
-            ('A', BRGU+OUTP),],
+            ('A_G', SPLT+GOUT),
+            ('A_D', SPLT+DOUT),],
         saver_pairs=[
             (BRGR, BRGR+VARIABLES),
             (GENR, GENR+VARIABLES),
@@ -91,10 +93,40 @@ def build(config):
             CNCT+D_IN,
             LSSD+O_IN,],
         alpha_tensor=ALIN+ALPH,
-        gen_outputs=[
-            ('G', BRGF+OUTP),
-            ('R', BRGF+OUT2),],
-        a_output=BRGF+OUT2,
+        gen_outputs={
+            'G': BRGF+OUTP,
+            'R': BRGF+OUT2,},
+        a_output=SPLT+DOUT,
+        growth_types={
+            BRGF: {
+                'new_subgraph': 'res_gen_pair_0{}',
+                'in': [INPT, INP2],
+                'out': [OUTP, OUT2],
+                'config': 'block{}_clone',
+                'train': 'G',
+            },
+            BRGR: {
+                'new_subgraph': 'res_rev_1{}',
+                'in': INPT,
+                'out': OUTP,
+                'config': 'block{}',
+                'train': 'R',
+            },
+            BRGD: {
+                'new_subgraph': 'res_rev_0{}',
+                'in': INPT,
+                'out': OUTP,
+                'config': 'block{}',
+                'train': 'D',
+            },
+            BRGU: {
+                'new_subgraph': 'res_gen_pair_1{}',
+                'in': INPT,
+                'out': OUTP,
+                'config': 'block{}',
+                'train': 'D',
+            },
+        },
     )
     
     alpha_inputs = []
@@ -153,17 +185,17 @@ def build(config):
 
     G.add_edges_from([
         # Reverse path
-        (BRGR, GENR, {'out': OUTP, 'in': INPT}),
+        (BRGR, GENR, {'out': OUTP, 'in': INPT, 'mod': BRGR}),
         (GENR, GENF, {'out': OUTP, 'in': INP2}),
-        (GENF, BRGF, {'out': [OUTP, OUT2], 'in': [INPT, INP2]}),
+        (GENF, BRGF, {'out': [OUTP, OUT2], 'in': [INPT, INP2], 'mod': BRGF}),
         (BRGF, LSSR, {'out': [OUTP, OUT2], 'in': [O_IN, A_IN]}),
         # Main path
         # (GENF, BRGF, {'out': [OUTP, OUT2], 'in': [INPT, INP2]}),
         (BRGF, CNCT, {'out': OUTP, 'in': G_IN}),
         (CNCT, BRGD, {'out': OUTP, 'in': INPT}),
-        (BRGD, DISC, {'out': OUTP, 'in': INPT}),
+        (BRGD, DISC, {'out': OUTP, 'in': INPT, 'mod': BRGD}),
         (DISC, DGEN, {'out': OUTP, 'in': INPT}),
-        (DGEN, BRGU, {'out': OUTP, 'in': INPT}),
+        (DGEN, BRGU, {'out': OUTP, 'in': INPT, 'mod': BRGU}),
         (BRGU, SPLT, {'out': OUTP, 'in': INPT}),
         (BRGF, LSSG, {'out': OUTP, 'in': O_IN}),
         (SPLT, LSSG, {'out': GOUT, 'in': A_IN}),

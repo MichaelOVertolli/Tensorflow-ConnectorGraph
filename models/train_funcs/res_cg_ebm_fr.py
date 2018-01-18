@@ -30,7 +30,7 @@ import time
 
 def build_train_ops(conngraph, inputs, outputs,
                     train_scope, loss_tensors, train_sets,
-                    img_pairs, saver_pairs, **keys):
+                    img_pairs, saver_pairs, alpha_tensor, **keys):
     config = conngraph.config
     with tf.Session(graph=tf.Graph()) as sess:
         conngraph.connect_graph(inputs, outputs, sess)
@@ -64,7 +64,7 @@ def build_train_ops(conngraph, inputs, outputs,
             d_optimizer = tf.train.AdamOptimizer(d_lr)
 
             # TODO: add incremental variable training as separate mod
-            g_optim = g_optimizer.minimize(g_loss, var_list=variables['G'])
+            g_optim = g_optimizer.minimize(g_loss, global_step=step, var_list=variables['G'])
             r_optim = r_optimizer.minimize(r_loss, var_list=variables['R'])
             d_optim = d_optimizer.minimize(d_out, var_list=variables['D'])
 
@@ -85,6 +85,9 @@ def build_train_ops(conngraph, inputs, outputs,
                                          sess.graph.get_tensor_by_name(tensor),
                                          config.data_format))
                 )
+
+            for i in range(conngraph.config.repeat_num-1):
+                summary_set.append(tf.summary.scalar('misc/alpha_'+str(i), sess.graph.get_tensor_by_name(alpha_tensor.format(i))))
 
             summary_set.extend([
                 tf.summary.scalar('loss/g_loss', g_loss),
@@ -152,11 +155,12 @@ def build_feed_func(gen_tensor, gen_input, rev_input, data_inputs, alpha_tensor,
             elif step >= config.alpha_update_steps*2:
                 self.alphas_feed[trainer.c_graph.block_index][1] = 1.0
             else:
-                val = step/float(config.alpha_update_steps)
+                val = (step-config.alpha_update_steps)/float(config.alpha_update_steps)
                 self.alphas_feed[trainer.c_graph.block_index][1] = val
             feeds.extend(self.alphas_feed)
 
-        gen_output = trainer.sess.run(gen_tensor, dict(feeds))
+        reverse = [(rev_input, np.zeros([trainer.batch_size, 3, trainer.img_size, trainer.img_size]))]
+        gen_output = trainer.sess.run(gen_tensor, dict(feeds+reverse))
         feeds.append((rev_input, gen_output))
         
         feed_dict = dict(feeds)
@@ -165,7 +169,7 @@ def build_feed_func(gen_tensor, gen_input, rev_input, data_inputs, alpha_tensor,
     return get_feed_dict
 
 
-def build_send_func(gen_input, data_inputs, gen_outputs, a_output, **keys):
+def build_send_func(gen_input, rev_input, data_inputs, gen_outputs, a_output, **keys):
     def send_outputs(self, trainer, step):
         if not hasattr(self, 'z_fixed'):
             self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
@@ -180,6 +184,9 @@ def build_send_func(gen_input, data_inputs, gen_outputs, a_output, **keys):
         feeds = [(gen_input, z_fixed)]
         if alphas:
             feeds.extend(self.alphas_feed)
+        reverse = [(rev_input, np.zeros([trainer.batch_size, 3, trainer.img_size, trainer.img_size]))]
+        gen_output = trainer.sess.run(gen_outputs['G'], dict(feeds+reverse))
+        feeds.append((rev_input, gen_output))
         feeds = dict(feeds)
 
         for name, output in gen_outputs.items():
@@ -202,7 +209,7 @@ def build_send_func(gen_input, data_inputs, gen_outputs, a_output, **keys):
                 afeeds.append((inpt, img))
             if alphas:
                 afeeds.extend(self.alphas_feed)
-            afeeds = dict(afeeds)
+            afeeds = dict(afeeds+reverse)
             x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(a_output),
                                  afeeds)
             save_image(denorm_img_numpy(x, trainer.data_format),
@@ -217,7 +224,7 @@ def build_send_func(gen_input, data_inputs, gen_outputs, a_output, **keys):
             feeds = [(gen_input, z)]
             if alphas:
                 feeds.extend(self.alphas_feed)
-            feeds = dict(feeds)
+            feeds = dict(feeds+reverse)
             z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(gen_outputs['G']),
                                         feeds)
             generated.append(denorm_img_numpy(z_decode, trainer.data_format))

@@ -39,12 +39,15 @@ STEP = 'step'
 
 class Trainer(object):
     def __init__(self, model_name, model_type, config, log_folder=None,
-                 data_name='CelebA', run_type='train'):
+                 data_name='CelebA', run_type='train', c_graph=None):
         self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
         if log_folder is None:
             log_folder = '_'.join([data_name, model_name, model_type, get_time()])
-        self.log_dir = os.path.join(LOGS_DIR, log_folder)
+        if LOGS_DIR not in log_folder:
+            self.log_dir = os.path.join(LOGS_DIR, log_folder)
+        else:
+            self.log_dir = log_folder
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
         self.data_dir = os.path.join(DATA_DIR, data_name)
@@ -59,10 +62,13 @@ class Trainer(object):
         self.use_gpu = config.use_gpu
         self.run_type = run_type
 
-        config = import_module(CONFIG_FILE.format(model_name))
-        graph = import_module(GRAPH_FILE.format(model_name))
+        if c_graph is None:
+            config = import_module(CONFIG_FILE.format(model_name))
+            graph = import_module(GRAPH_FILE.format(model_name))
 
-        self.c_graph = graph.build_graph(config.config(model_type))
+            self.c_graph = graph.build_graph(config.config(model_type))
+        else:
+            self.c_graph = c_graph
         self.output_fdict = dict([(var.name, var) for var in self.c_graph.graph.get_collection(OUTPUTS)])
         self.interim_fdict = dict([(var.name, var) for var in self.c_graph.graph.get_collection(INTERIM)])
         self.summary_name = self.c_graph.graph.get_collection(SUMMARY)[0].name #should always be a single merge summary
@@ -123,7 +129,7 @@ class Trainer(object):
                         out_str.append('{}: {:.6f}'.format(var, val))
                 print('[{}/{}]\n'.format(step, self.max_step) + '\n'.join(out_str))
 
-            if step % (self.log_step * 100) == 0:
+            if step % (self.log_step * 10) == 0:
                 self.c_graph.send_outputs(self, step)
 
             if step % self.lr_update_step == self.lr_update_step - 1:
