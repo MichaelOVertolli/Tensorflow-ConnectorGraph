@@ -99,6 +99,11 @@ class SubGraph(object):
                                    ', '.join(self.output_names))
 
 
+    def get_module_name(self, model_name):
+        """Strips the index (_#) off of the model name."""
+        return '_'.join(model_name.split('_')[:-1])
+
+
     def restore(self, model_name, config_type, sess, input_map=None):
         """Imports the SubGraph into the graph of the session.
 
@@ -120,6 +125,41 @@ class SubGraph(object):
             tf.import_graph_def(self.graph.as_graph_def(),
                                 input_map=input_map,
                                 name=model_name)
+
+
+    def freeze(self, sess):
+        """Returns a FrozenSubGraph of this SubGraph.
+
+        Designed to be called during initialization or during active
+        training. Assumes that the tf.Session includes the graph of
+        this SubGraph.
+
+        Do not use to build FrozenSubGraphs that already exist. Use
+        frozen.copy() instead.
+
+        Arguments:
+        sess  := (tf.Session) the session that contains the graph of 
+                 this BuiltSubGraph.
+
+        """
+        frozen_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(),
+            self.strip_names(self.output_names))
+        #assume this is only ever used to initialize a FrozenSubGraph
+        #so we can set the name parameter to 0
+        name = 'frozen_{}_0'.format(self.get_module_name(self.name))
+        frozen = FrozenSubGraph(name, self.config_type, frozen_graph_def,
+                                ['/'.join([name, tensor_name])
+                                 for tensor_name in self.input_names],
+                                ['/'.join([name, tensor_name])
+                                 for tensor_name in self.output_names])
+        return frozen
+
+
+    def strip_names(self, names):
+        """Removes Tensorflow's tensor index ":#" from a list of tensor names."""
+        return [name.split(':')[0] for name in names]
 
 
 CONFIG_FILE = 'models.{}.config'
@@ -171,7 +211,7 @@ class BuiltSubGraph(SubGraph):
         Arguments:
         model_name  := (str) the unique name of the SubGraph object. Convention is
                        "folder_name"+"_#" where # is some numeric string to make 
-                       names unique. However, this is not required for the base class.
+                       names unique.
         config_type := (str) a string specifying the config type for this SubGraph
                        object.
         session     := (tf.Session) a reference to a session object with an empty Graph
@@ -232,11 +272,6 @@ class BuiltSubGraph(SubGraph):
         return META.format(config_type) in files
 
 
-    def get_module_name(self, model_name):
-        """Strips the index (_#) off of the model name."""
-        return '_'.join(model_name.split('_')[:-1])
-
-
     def restore(self, model_name, config_type, sess, input_map=None):
         """Imports the SubGraph into the graph of the session.
 
@@ -263,47 +298,13 @@ class BuiltSubGraph(SubGraph):
             self.saver.restore(sess, self.log_dir)
 
 
-    def freeze(self, sess):
-        """Returns a FrozenSubGraph of this BuiltSubGraph.
-
-        Designed to be called during initialization or during active
-        training. Assumes that the tf.Session includes the graph of
-        this BuiltSubGraph.
-
-        Do not use to build FrozenSubGraphs that already exist. Use
-        frozen.copy() instead.
-
-        Arguments:
-        sess  := (tf.Session) the session that contains the graph of 
-                 this BuiltSubGraph.
-
-        """
-        frozen_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(),
-            self.strip_names(self.output_names))
-        #assume this is only ever used to initialize a FrozenSubGraph
-        #so we can set the name parameter to 0
-        name = 'frozen_{}_0'.format(self.get_module_name(self.name))
-        frozen = FrozenSubGraph(name, self.config_type, frozen_graph_def,
-                                ['/'.join([name, tensor_name])
-                                 for tensor_name in self.input_names],
-                                ['/'.join([name, tensor_name])
-                                 for tensor_name in self.output_names])
-        return frozen
-
-
-    def strip_names(self, names):
-        """Removes Tensorflow's tensor index ":#" from a list of tensor names."""
-        return [name.split(':')[0] for name in names]
-
-
 class FrozenSubGraph(SubGraph):
     def __init__(self, model_name, config_type, frozen_graph_def, inpts, outpts):
         super(FrozenSubGraph, self).__init__(model_name, config_type, tf.Graph())
         self.frozen_graph_def = frozen_graph_def
         self.input_names = inpts
         self.output_names = outpts
+        self.config = config_type
 
 
     def restore(self, model_name, config_type, sess, input_map=None):
