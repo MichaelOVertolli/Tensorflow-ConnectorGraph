@@ -87,7 +87,6 @@ def convert(graph, config, load_map={}):
     conngraph = ConnectorGraph(config)
 
     for node in graph:
-        print node
         if 'loss' in node:
             config_type = config.lss_type
         else:
@@ -97,6 +96,7 @@ def convert(graph, config, load_map={}):
                 config_type = config.mdl_type
             else:
                 config_type = '_'.join([config.mdl_type]+config_mod)
+        print node, config_type
         try:
             log_dir = load_map[node]
         except KeyError:
@@ -110,6 +110,7 @@ def convert(graph, config, load_map={}):
 
     inputs = get_nodes(graph, 'inputs')
     outputs = get_nodes(graph, 'outputs')
+    conngraph.block_index = graph.graph['block_index']
     # img_pairs = get_nodes(graph, 'img')
     # img_pairs = [(tensor.split('/')[0], tensor) for tensor in img_pairs]
     # loss_sets = get_sets(graph, 'loss')

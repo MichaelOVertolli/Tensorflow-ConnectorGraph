@@ -36,9 +36,9 @@ def ResidualBlock(inpt,
                   normalizer_params=None,
                   reuse=False,
                   data_format='NCHW'):
-    fc_size = np.prod([hidden_num, size, size])
     with tf.variable_scope(block_name, reuse=reuse) as vs:
-        if project: 
+        if project:
+            fc_size = np.prod([hidden_num, size, size])
             shortcut = slim.fully_connected(inpt, fc_size, activation_fn=None) # linear projection
             shortcut = reshape(shortcut, hidden_num, size, size, data_format)
         else:
@@ -108,7 +108,7 @@ def ResNet(inpt,
     sep_variables = {}
     with tf.variable_scope(net_name) as vs:
         if resample == 'up':
-            with tf.variable_scope('front') as vs_front:
+            with tf.variable_scope('front', reuse=reuse) as vs_front:
                 fc_size = np.prod([hidden_nums[0], sizes[0], sizes[0]])
                 x = slim.fully_connected(inpt, fc_size, activation_fn=None)
                 x = reshape(x, sizes[0], sizes[0], hidden_nums[0], data_format)
@@ -125,7 +125,7 @@ def ResNet(inpt,
                                      reuse, data_format)
                 sep_variables[block_name] = v
             else:
-                with tf.variable_scope('end') as vs_end:
+                with tf.variable_scope('end', reuse=reuse) as vs_end:
                     if minibatch:
                         x = minibatch_disc_concat(x)
                     x = slim.conv2d(x, hidden_nums[i], 3, 1, activation_fn=activation_fn, 
@@ -138,7 +138,7 @@ def ResNet(inpt,
                                         normalizer_fn=normalizer_fn, normalizer_params=normalizer_params,
                                         data_format=data_format)
                         x = slim.conv2d(x, 3, 3, 1, activation_fn=None, data_format=data_format)
-                    elif resample == 'down':
+                    elif resample == 'down': #I think this is wrong.... hidden_nums should be z_num (not using though)
                         x = slim.conv2d(x, hidden_nums[i], 4, 1, padding='VALID', activation_fn=activation_fn, 
                                         weights_initializer=weights_initializer,
                                         normalizer_fn=normalizer_fn, normalizer_params=normalizer_params,

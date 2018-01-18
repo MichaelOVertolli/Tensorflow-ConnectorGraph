@@ -47,7 +47,7 @@ def build_graph(config):
                                         
     if config.block == 0:
         with tf.variable_scope('end'):
-            R_out = models.slim.conv2d(R_out, config.hidden_num, 4, 1, padding='VALID',
+            R_out = models.slim.conv2d(R_out, config.z_num, 4, 1, padding='VALID',
                                        activation_fn=config.activation_fn, 
                                        weights_initializer=config.weights_init,
                                        normalizer_fn=config.normalizer_fn,

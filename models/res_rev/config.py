@@ -32,6 +32,7 @@ Z2048_SZ64 = 'z2048_sz64'
 Z256_SZ128 = 'z256_sz128'
 H128 = 'h128'
 H256 = 'h256'
+H512 = 'h512'
 PROJ = 'project'
 ALPH = 'alphas'
 ELU_ = 'elu'
@@ -86,6 +87,8 @@ def config(type_):
         config.hidden_num = 128
     elif H256 in type_:
         config.hidden_num = 256
+    elif H512 in type_:
+        config.hidden_num = 512
     else:
         raise ConfigError('Invalid hidden_num in type: {}.'.format(type_))
     if LRLU in type_:
@@ -140,7 +143,7 @@ def config(type_):
     else:
         config.minibatch = False
 
-    sizes = [2**i for i in range(3, int(np.log2(config.size)))]
+    sizes = [2**i for i in range(3, int(np.log2(config.size)+1))]
     config.size = sizes[config.block]
     config.name = type_
 

@@ -25,7 +25,6 @@ def build_graph(config):
     G = build(config)
 
     conngraph, inputs, outputs = convert(G, config)
-    conngraph.block_index = 0
     
     conngraph = build_train_ops(conngraph, inputs, outputs, **G.graph)
 
