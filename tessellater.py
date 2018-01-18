@@ -32,17 +32,23 @@ import tensorflow as tf
 class Tessellater(object):
 
     def __init__(self, model_dir, data_name, model_name, config_type,
-                 input_isize, input_zsize, output_size, file_name, log_folder):
-        if model_dir is None:
+                 input_isize, input_zsize, output_size, file_name, log_folder,
+                 inputs=None, frozen_graph=None):
+        if frozen_graph is None and model_dir is None:
             raise TessellaterError('model_dir cannot be None. Specify a valid model path.')
         self.output_size = output_size # assumes output_size is [w, h]
         self.file_name = file_name
         self.input_isize = input_isize
         self.input_zsize = input_zsize
         self.log_folder = log_folder
-        with tf.Session(graph=tf.Graph()) as session:
-            self.graph = BuiltSubGraph(model_name, config_type, session, model_dir)
-            self.graph = self.graph.freeze(session)
+        if inputs is not None:
+            self.inputs = inputs
+        if frozen_graph is None:
+            with tf.Session(graph=tf.Graph()) as session:
+                self.graph = BuiltSubGraph(model_name, config_type, session, model_dir)
+                self.graph = self.graph.freeze(session)
+        else:
+            self.graph = frozen_graph
         self.runner = Runner([self.graph], log_folder, data_name, img_size=input_isize)
 
 
@@ -56,7 +62,12 @@ class Tessellater(object):
             h = int(np.ceil(h/float(isize)))
             n = h*w
             self.img = np.zeros([1, 3, h*isize, w*isize])
-            parts = self.runner.sess.run(self.zoutput, {self.zinput: np.random.uniform(-1, 1, [n, self.input_zsize])})
+            if self.inputs is not None:
+                inputs = dict([_ for _ in self.inputs.items()])
+            else:
+                inputs = {}
+            inputs[self.zinput] = np.random.uniform(-1, 1, [n, self.input_zsize])
+            parts = self.runner.sess.run(self.zoutput, inputs)
             for i in range(h):
                 for j in range(w):
                     self.img[0, :, i*isize:(i+1)*isize, j*isize:(j+1)*isize] = parts[i*w+j, :, :, :]
@@ -73,8 +84,12 @@ class Tessellater(object):
         for i in range(iters):
             w_ = randint(0, w)
             h_ = randint(0, h)
-            m_img = self.runner.sess.run(self.routput, {self.rinput:
-                                                     self.img[:, :, h_:h_+isize, w_:w_+isize]})
+            if self.inputs is not None:
+                inputs = dict([_ for _ in self.inputs.items()])
+            else:
+                inputs = {}
+            inputs[self.rinput] = self.img[:, :, h_:h_+isize, w_:w_+isize]
+            m_img = self.runner.sess.run(self.routput, inputs)
             self.img[:, :, h_:h_+isize, w_:w_+isize] = m_img
 
 
@@ -89,15 +104,20 @@ class Tessellater(object):
         for i in range(iters):
             h_, w_ = hs[i], ws[i]
             imgs[i, :, :, :] = self.img[:, :, h_:h_+isize, w_:w_+isize]
-        m_imgs = self.runner.sess.run(self.routput, {self.rinput: imgs})
+        if self.inputs is not None:
+            inputs = dict([_ for _ in self.inputs.items()])
+        else:
+            inputs = {}
+        inputs[self.rinput] = imgs
+        m_imgs = self.runner.sess.run(self.routput, inputs)
         for i in range(iters):
             h_, w_ = hs[i], ws[i]
             self.img[:, :, h_:h_+isize, w_:w_+isize] = m_imgs[i, :, :, :]
 
 
-    def save_img(self):
+    def save_img(self, mod):
         save_image(denorm_img_numpy(self.img, 'NCHW'),
-                   os.path.join('./logs/', self.log_folder, self.file_name))
+                   os.path.join('./logs/', self.log_folder, self.file_name.format(mod)))
 
 
     def set_rinput(self, rinput):
