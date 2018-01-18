@@ -21,14 +21,19 @@ from .. import models
 
 
 def build_graph(config):
-    G_in = tf.placeholder(tf.float32, [None, config.z_num], name='input')
-    tf.add_to_collection('inputs', G_in)
     if config.block == 0:
+        G_in = tf.placeholder(tf.float32, [None, config.z_num], name='input')
+        tf.add_to_collection('inputs', G_in)
         with tf.variable_scope('front') as vs:
             fc_size = np.prod([config.hidden_num, config.size, config.size])
             G_in = models.slim.fully_connected(G_in, fc_size, activation_fn=None)
             G_in = models.reshape(G_in, config.size, config.size,
                                   config.hidden_num, config.data_format)
+    else:
+        G_in = tf.placeholder(tf.float32, [None, config.hidden_num,
+                                           config.size, config.size],
+                              name='input')
+        tf.add_to_collection('inputs', G_in)
     if config.alpha:
         alpha = tf.placeholder(tf.float32, (), name='alpha'+str(config.block))
         tf.add_to_collection('inputs', alpha)
@@ -53,14 +58,19 @@ def build_graph(config):
     tf.add_to_collection('outputs', G_out)
 
     if config.clone:
-        G2_in = tf.placeholder(tf.float32, [None, config.z_num], name='input2')
-        tf.add_to_collection('inputs', G2_in)
         if config.block == 0:
+            G2_in = tf.placeholder(tf.float32, [None, config.z_num], name='input2')
+            tf.add_to_collection('inputs', G2_in)
             with tf.variable_scope('front', reuse=True):
                 fc_size = np.prod([config.hidden_num, config.size, config.size])
                 G2_in = models.slim.fully_connected(G2_in, fc_size, activation_fn=None)
                 G2_in = models.reshape(G2_in, config.size, config.size,
                                        config.hidden_num, config.data_format)
+        else:
+            G2_in = tf.placeholder(tf.float32, [None, config.hidden_num,
+                                                config.size, config.size],
+                                   name='input2')
+            tf.add_to_collection('inputs', G2_in)
         G2_out, G2_all_vars = models.ResidualBlock(G2_in,
                                                    config.hidden_num,
                                                    config.size,
