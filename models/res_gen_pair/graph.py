@@ -21,7 +21,7 @@ from .. import models
 
 
 def build_graph(config):
-    if config.block == 0:
+    if config.base:
         G_in = tf.placeholder(tf.float32, [None, config.z_num], name='input')
         tf.add_to_collection('inputs', G_in)
         with tf.variable_scope('front') as vs:
@@ -58,7 +58,7 @@ def build_graph(config):
     tf.add_to_collection('outputs', G_out)
 
     if config.clone:
-        if config.block == 0:
+        if config.base:
             G2_in = tf.placeholder(tf.float32, [None, config.z_num], name='input2')
             tf.add_to_collection('inputs', G2_in)
             with tf.variable_scope('front', reuse=True):

@@ -82,3 +82,7 @@ def init_subgraph(subgraph_name, type_, log_dir=None):
         with tf.Session(graph=tf.Graph()) as sess:
             subgraph = BuiltSubGraph(subgraph_name, type_, sess, log_dir)
     return subgraph
+
+
+def strip_index(model_name):
+    return '_'.join(model_name.split('_')[:-1])

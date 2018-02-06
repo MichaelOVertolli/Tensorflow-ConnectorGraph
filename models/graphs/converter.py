@@ -88,7 +88,12 @@ def convert(graph, config, load_map={}):
 
     for node in graph:
         if 'loss' in node:
-            config_type = config.lss_type
+            try:
+                config_mod = graph.nodes[node]['config']
+            except KeyError:
+                config_type = config.lss_type
+            else:
+                config_type = '_'.join([config.lss_type]+config_mod)
         else:
             try:
                 config_mod = graph.nodes[node]['config']
@@ -132,5 +137,11 @@ def build_variables(conngraph, sess, train_sets):
             variables[net] = []
             var_set = variables[net]
         for subgraph in train_sets[net]:
-            var_set.extend(tf.get_collection(subgraph+VARS))
+            if type(subgraph) is list:
+                s_set = []
+                for s in subgraph:
+                    s_set.extend(tf.get_collection(s+VARS))
+                var_set.append(s_set)
+            else:
+                var_set.extend(tf.get_collection(subgraph+VARS))
     return variables

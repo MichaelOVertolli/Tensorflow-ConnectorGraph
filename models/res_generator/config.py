@@ -23,6 +23,7 @@ import tensorflow as tf
 slim = tf.contrib.slim
 
 #TYPES:
+Z128_SZ32 = 'z128_sz32'
 Z128_SZ64 = 'z128_sz64'
 Z256_SZ64 = 'z256_sz64'
 Z1024_SZ64 = 'z1024_sz64'
@@ -52,7 +53,10 @@ def config(type_):
     config.data_format = 'NCHW'
     config.resample = 'up'
 
-    if Z128_SZ64 in type_:
+    if Z128_SZ32 in type_:
+        config.z_num = 128
+        config.size = 32
+    elif Z128_SZ64 in type_:
         config.z_num = 128
         config.size = 64
     elif Z256_SZ64 in type_:
