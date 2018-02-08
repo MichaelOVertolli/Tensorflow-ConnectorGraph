@@ -145,7 +145,8 @@ class NetGen(object):
             self.linked = {}
 
 
-    def get_partial_graph(self, fsubgraph, rsubgraph, losses): # needs to be implemented
+    def get_partial_graph(self, fsubgraph, rsubgraph, losses):
+        # creating partial graph
         base = [fsubgraph, self.G.graph['alpha_tensor'].split('/')[0]]
         base.extend(losses)
         try:
@@ -156,9 +157,47 @@ class NetGen(object):
             base.append(rsubgraph)
             top &= set(ancestors(self.G, fsubgraph))
         descendnts = set(descendants(self.G, fsubgraph))
-        bot = descendnts & set(ancestors(self.G, losses[-1]))
+        bot = descendnts & set(ancestors(self.G, losses[-1])) # not Disc or mad loss
         full = list(top | bot)+base
         partial_graph = nx.subgraph(self.G, full).copy()
+
+        # adjusting graph attributes
+        graph = partial_graph.graph
+        saver_pairs = {}
+        for sub in partial_graph.nodes:
+            try:
+                variables = graph['saver_pairs'][sub]
+            except KeyError:
+                continue
+            else:
+                saver_pairs[sub] = variables
+        graph['saver_pairs'] = saver_pairs.items()
+        
+        img_pairs = []
+        gen_outputs = []
+        for i, sub in enumerate(self.G.successors(fsubgraph)):
+            bridge = next(self.G.successors(sub))
+            bridge_out = bridge+graph['img_pairs']['G'][1]
+            img_pairs.append(('G{}'.format(i), bridge_out))
+            gen_outputs.append(bridge_out)
+            if self.G.graph['reversable']:
+                img_pairs.append(('R{}'.format(i), bridge+graph['img_pairs']['R'][1]))
+        for sub in self.G.predecessors(losses[-1]): # not Disc or mad loss
+            if graph['img_pairs']['A_'][0] in sub:
+                for i in range(1, self.G.graph['breadth_count']+1):
+                    img_pairs.append(('A_G{}'.format(i), sub+graph['img_pairs']['A_'][1].format(i)))
+                img_pairs.append(('A_D', sub+graph['img_pairs']['A_'][1].format(0)))
+                break # there's only one relevant subgraph
+        graph['img_pairs'] = img_pairs
+        graph['gen_outputs']['G'] = gen_outputs
+
+        data_inputs = []
+        data_inputs.append(graph['data_inputs']['loss'])
+        for sub in descendants(self.G, fsubgraph):
+            if graph['concat_type'] in sub:
+                data_inputs.append(sub+graph['data_inputs']['concat'])
+                break
+        graph['data_inputs'] = data_inputs
         
         return partial_graph
 
@@ -209,12 +248,11 @@ class NetGen(object):
                 t_set[loss].append(new_subgraph)
             except TypeError:
                 t_set.append(new_subgraph)
-            saver_pairs = []
         else:
             self.G.graph['train_sets'][train][loss] = train_set
-            saver_pairs = [(loss, loss+VARIABLES)]
-        saver_pairs.append((new_subgraph, new_subgraph+VARIABLES))
-        self.G.graph['saver_pairs'].extend(saver_pairs)
+        # saver_pairs.append((new_subgraph, new_subgraph+VARIABLES))
+        # self.G.graph['saver_pairs'].extend(saver_pairs)
+        self.G.graph['saver_pairs'][new_subgraph] = new_subgraph+VARIABLES
         self.G.add_nodes_from([
             (new_subgraph, {'config': config})
         ])
@@ -321,7 +359,7 @@ class NetGen(object):
         ])
 
         # add concat
-        if block_index > 1 and not rev:
+        if block_index > 1 and not rev: # need to handle this differently during branch automation
             concat = branch['concat']
             old_concat = next(dsub for dsub in descendants(self.G, subgraph) if graph['concat_type'] in dsub)
             self.split_nconcat(concat, old_concat, subgraph)
@@ -379,9 +417,10 @@ class NetGen(object):
         # add graph updates
 
         graph['loss_tensors'][train].append(nloss+loss['out'])
-
         if not rev:
             graph['gen_tensor'].append(nbridge+bridge['out'])
+
+        graph['saver_pairs'][nbridge] = nbridge+VARIABLES
 
         return nloss
 

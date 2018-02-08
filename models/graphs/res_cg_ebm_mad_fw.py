@@ -91,14 +91,18 @@ def build(config):
                 LSG0: [GNF0, GNF1, BRF0],
                 LSG1: [GNF0, GNF2, BRF1]},
             'D': [DSC0, DSC1, DGN0, DGN1, BRGD, BRGU],},
-        img_pairs=[
-            ('G1', BRF0+OUTP), # need to be modified when we generate a partial graph
-            ('G2', BRF1+OUTP),
-            ('A_G1', NSP0+OUTN.format(1)),
-            ('A_G2', NSP0+OUTN.format(2)),
-            ('A_D', NSP0+OUTN.format(0)),],
-        saver_pairs=[
-            (GNF0, GNF0+VARIABLES), # should be modified when making partial graph
+        img_pairs={
+            'G': ['res_bridge', OUTP],
+            'R': ['res_bridge', OUT2],
+            'A_': ['mad_nsplit', OUTN],
+            },
+            # ('G1', BRF0+OUTP), # need to be modified when we generate a partial graph (done)
+            # ('G2', BRF1+OUTP),
+            # ('A_G1', NSP0+OUTN.format(1)),
+            # ('A_G2', NSP0+OUTN.format(2)),
+            # ('A_D', NSP0+OUTN.format(0)),],
+        saver_pairs=dict([
+            (GNF0, GNF0+VARIABLES), # should be modified when making partial graph (done)
             (GNF1, GNF1+VARIABLES),
             (GNF2, GNF2+VARIABLES),
             (BRF0, BRF0+VARIABLES),
@@ -108,16 +112,20 @@ def build(config):
             (DSC1, DSC1+VARIABLES),
             (DGN0, DGN0+VARIABLES),
             (DGN1, DGN1+VARIABLES),
-            (BRGU, BRGU+VARIABLES),],
+            (BRGU, BRGU+VARIABLES),]),
         gen_tensor=[BRF0+OUTP, BRF1+OUTP],
-        gen_input=None,
-        rev_inputs=None,
-        data_inputs=[
-            #NCN0+INPN.format(0), add this when making partial graph
-            LSSD+O_IN,],
+        gen_input=None, # should be generic across all partial graphs
+        rev_inputs=None, # should be modified when making partial graphs (not done yet)
+        data_inputs={
+            'loss': LSSD+O_IN,
+            'concat': INPN.format(0),
+            },
+            # [
+            # NCN0+INPN.format(0), add this when making partial graph (done)
+            # LSSD+O_IN,],
         alpha_tensor=ALIN+ALPH,
         gen_outputs={
-            'G': [BRF0+OUTP, BRF1+OUTP]}, # should be modified when making partial graph
+            'G': []},# [BRF0+OUTP, BRF1+OUTP]}, # should be modified when making partial graph (done)
         a_output=NSP0+OUTN.format(0),
         branch_types={
             'res_gen_pair': {
@@ -158,7 +166,7 @@ def build(config):
         growth_types={
             BRGD: {
                 'name': 'res_rev_{:04}',
-                'in': INPT, # something really weird is happening here.
+                'in': INPT,
                 'out': OUTP,
                 'config': 'block{}',
                 'train': 'D',
