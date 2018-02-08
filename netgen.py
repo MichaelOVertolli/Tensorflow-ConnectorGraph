@@ -17,6 +17,7 @@
 
 import networkx as nx
 from networkx.algorithms.dag import ancestors, descendants, topological_sort
+from networkx.exception import NetworkXError
 from importlib import import_module
 from models.graphs.converter import convert
 from models.model_utils import strip_index
@@ -116,18 +117,25 @@ class NetGen(object):
                                     base_train_set.append(d)
                                 else:
                                     break
-                            base_bridge = next(self.G.predecessors(next(self.G.predecessors(subgraph))))
+                            base_bridge = next(n.G.successors(next(n.G.successors(subgraph))))
                         else:
                             base_train_set = list(ancestors(self.G, subgraph))
                             base_bridge = next(self.G.successors(next(self.G.successors(subgraph))))
                         # base_bridge = next(sub for sub in base_train_set if bridge_name in sub)
                         base_train_set.append(subgraph)
                         base_train_set = [sub for sub in base_train_set if branch_type in sub]
+                        losses = [self.G.graph['loss_tensors']['D'].split('/')[0],
+                                  self.G.graph['loss_tensors']['U'][0].split('/')[0]]
+                        losses.extend([s for s in self.G.successors(base_bridge) if strip_index(losses[0]) in s])
                         for i in range(self.G.graph['breadth_count'] - 1):
-                            self.add_branch(branch_type, block_index, subgraph, fsubgraph,
-                                            base_bridge, base_train_set, i)
-                        
-                        Gpart = self.get_partial_graph(subgraph) # needs to be implemented
+                            nloss = self.add_branch(branch_type, block_index, subgraph, fsubgraph,
+                                                    base_bridge, base_train_set, i)
+                            losses.append(nloss)
+                        if self.G.reversable:
+                            if fsubgraph is not None:
+                                self.get_partial_graph(fsubgraph, subgraph, losses) 
+                        else:
+                            Gpart = self.get_partial_graph(subgraph, None, losses)
                         self.run_training(Gpart, cur_log_dir, program[DATA], load_map, block_index)
                     
                 else:
@@ -137,8 +145,22 @@ class NetGen(object):
             self.linked = {}
 
 
-    def get_partial_graph(self, subgraph): # needs to be implemented
-        return None
+    def get_partial_graph(self, fsubgraph, rsubgraph, losses): # needs to be implemented
+        base = [fsubgraph, self.G.graph['alpha_tensor'].split('/')[0]]
+        base.extend(losses)
+        try:
+            top = set(descendants(self.G, rsubgraph))
+        except NetworkXError:
+            top = set(ancestors(self.G, fsubgraph))
+        else:
+            base.append(rsubgraph)
+            top &= set(ancestors(self.G, fsubgraph))
+        descendnts = set(descendants(self.G, fsubgraph))
+        bot = descendnts & set(ancestors(self.G, losses[-1]))
+        full = list(top | bot)+base
+        partial_graph = nx.subgraph(self.G, full).copy()
+        
+        return partial_graph
 
 
     def build_load_map(self, log_dir):
@@ -361,6 +383,8 @@ class NetGen(object):
         if not rev:
             graph['gen_tensor'].append(nbridge+bridge['out'])
 
+        return nloss
+
 
     def split_nsplit(self, split, old_split, branch_subgraph):
         successrs = list(self.G.successors(old_split))
@@ -386,6 +410,7 @@ class NetGen(object):
             old_out = self.G.edges[predecessr, old_split]['out']
             self.add_connection(new_split, predecessr, sub,
                                 old_in, old_out, new_in, new_out, False, nomod=True)
+            self.G.remove_edge(old_split, sub)
             self.G.add_edges_from([
                 (new_split, dloss, {'out': split['out'].format(0), 'in': dloss_in})
             ])

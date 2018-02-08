@@ -70,6 +70,7 @@ BCOUNT = 2
 def build(config):
     G = nx.DiGraph(
         train_scope='res_train',
+        reversable=False,
         concat_type='mad_nconcat',
         split_type='mad_nsplit',
         block_index=1,
