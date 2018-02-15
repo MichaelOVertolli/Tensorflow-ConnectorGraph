@@ -17,9 +17,10 @@
 
 from ..connectorgraph import ConnectorGraph
 from ..errors import FirstInitialization
-from ..graphs.converter import build_variables
+from ..graphs.converter import branching_build_variables
 import numpy as np
 import os
+import re
 from skimage.measure import block_reduce
 from scipy.ndimage import zoom
 from ..subgraph import BuiltSubGraph, SubGraph
@@ -34,24 +35,13 @@ def build_train_ops(conngraph, inputs, outputs,
     config = conngraph.config
     with tf.Session(graph=tf.Graph()) as sess:
         conngraph.connect_graph(inputs, outputs, sess)
-
-        variables = build_variables(conngraph, sess, train_sets) # build_variables needs to be adjusted
         
+        variables = branching_build_variables(conngraph, sess, train_sets)
         step = tf.Variable(0, dtype=tf.int32, name='step', trainable=False)
         
         with tf.variable_scope(train_scope):
 
             k_t = tf.Variable(0., trainable=False, name='k_t')
-
-            u_losses = [sess.graph.get_tensor_by_name(loss_tensor) for loss_tensor in loss_tensors['U']]
-            g_losses = [sess.graph.get_tensor_by_name(loss_tensor) for loss_tensor in loss_tensors['G']]
-            g_losses = [g_losses[i]+(conngraph.config.lambda_u*u_losses[i])
-                        for i in range(len(g_losses))] # add diversity loss to gen loss
-            g_losses = [tf.identity(g_loss, name='g_loss{}'.format(i)) for i, g_loss in enumerate(g_losses)]
-
-            d_loss = sess.graph.get_tensor_by_name(loss_tensors['D'])
-            d_out = d_loss - k_t * g_loss
-            d_out = tf.identity(d_out, name='d_loss')
 
             g_lr = tf.Variable(config.g_lr, name='g_lr')
             d_lr = tf.Variable(config.d_lr, name='d_lr')
@@ -59,10 +49,26 @@ def build_train_ops(conngraph, inputs, outputs,
             g_lr_update = tf.assign(g_lr, tf.maximum(g_lr * 0.5, config.lr_lower_boundary), name='g_lr_update')
             d_lr_update = tf.assign(d_lr, tf.maximum(d_lr * 0.5, config.lr_lower_boundary), name='d_lr_update')
 
-            g_optimizers = [tf.train.AdamOptimizer(g_lr) for _ in g_losses]
-            d_optimizer = tf.train.AdamOptimizer(d_lr)
+            g_losses = []
+            g_optims = []
+            for g_loss_tensor in loss_tensors['G']: # finish this
+                g_loss_name = g_loss_tensor.split('/')[0]
+                g_loss = sess.graph.get_tensor_by_name(g_loss_tensor)
+                u_loss_tensor = loss_tensors['U'][g_loss_name]
+                index = re.search('\d+(?=\:)', u_loss_tensor).group()
+                u_loss = sess.graph.get_tensor_by_name(u_loss_tensor)
+                g_loss = g_loss + conngraph.config.lambda_u*u_loss
+                g_loss = tf.identity(g_loss, name='g_loss{}'.format(index))
+                g_optimizer = tf.train.AdamOptimizer(g_lr)
+                g_optim = g_optimizer.minimize(g_loss, var_list=variables['G'][g_loss_name])
+                g_losses.append(g_loss)
+                g_optims.append(g_optim)
 
-            g_optims = [g_optimizer.minimize(g_losses[i], var_list=variables['G'][i]) for i, g_optimizer in enumerate(g_optimizers)]
+            d_loss = sess.graph.get_tensor_by_name(loss_tensors['D'])
+            d_out = d_loss - k_t * g_loss
+            d_out = tf.identity(d_out, name='d_loss')
+
+            d_optimizer = tf.train.AdamOptimizer(d_lr)
             
             d_optim = d_optimizer.minimize(d_out, global_step=step, var_list=variables['D'])
 
@@ -183,15 +189,19 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, *
 
         feeds = dict(feeds)
 
-        for name, output in gen_outputs.items():
-            x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(output), feeds)
-            if name == 'G':
-                gen = x_gen
-            save_image(denorm_img_numpy(x_gen, trainer.data_format),
-                       os.path.join(trainer.log_dir, '{}_{}.png'.format(step, name)))
+        autoencode_set = [('real', self.x_fixed)]
+        for name, outputs in gen_outputs.items():
+            for o in outputs:
+                name = o.split('/')
+                index = re.search('(?<=_)\d+', o).group()
+                x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(o), feeds)
+                if name == 'G':
+                    autoencode_set.append(('gen{}'.format(index), x_gen))
+                    save_image(denorm_img_numpy(x_gen, trainer.data_format),
+                               os.path.join(trainer.log_dir, '{}_{}{}.png'.format(step, name, index)))
 
         #autoencode
-        for k, img in (('real', self.x_fixed), ('gen', gen)):
+        for k, img in autoencode_set:
             if img is None:
                 continue
             if img.shape[3] in [1, 3]:

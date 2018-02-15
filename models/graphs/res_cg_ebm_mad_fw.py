@@ -70,9 +70,11 @@ BCOUNT = 2
 def build(config):
     G = nx.DiGraph(
         train_scope='res_train',
-        reversable=False,
+        reversible=False,
         concat_type='mad_nconcat',
         split_type='mad_nsplit',
+        froot=GNF0,
+        rroot=None,
         block_index=1,
         counts={
             'res_bridge': 4,
@@ -83,13 +85,13 @@ def build(config):
             'mad_nsplit': 1,},
         breadth_count=BCOUNT,
         loss_tensors={
-            'G': [LSG0+OUTP, LSG1+OUTP],
+            'G': OUTP, # needs to be modified with partial graph (done)
             'D': LSSD+OUTP,
-            'U': [LSSU+OUTN.format(i) for i in range(BCOUNT)],},
+            'U': ['res_bridge', LSSU, OUTN],}, # [LSSU+OUTN.format(i) for i in range(BCOUNT)],},
         train_sets={
             'G': {
-                LSG0: [GNF0, GNF1, BRF0],
-                LSG1: [GNF0, GNF2, BRF1]},
+                LSG0: [GNF0, GNF1, BRF0], # needs to be modified with partial graph (done)
+                LSG1: [GNF0, GNF2, BRF1]}, # needs to be modified with partial graph (done)
             'D': [DSC0, DSC1, DGN0, DGN1, BRGD, BRGU],},
         img_pairs={
             'G': ['res_bridge', OUTP],
@@ -113,9 +115,9 @@ def build(config):
             (DGN0, DGN0+VARIABLES),
             (DGN1, DGN1+VARIABLES),
             (BRGU, BRGU+VARIABLES),]),
-        gen_tensor=[BRF0+OUTP, BRF1+OUTP],
-        gen_input=None, # should be generic across all partial graphs
-        rev_inputs=None, # should be modified when making partial graphs (not done yet)
+        gen_tensor=[],# [BRF0+OUTP, BRF1+OUTP], # should be modified when making partial graphs (done)
+        gen_input=GNF0+INPT, # should be generic across all partial graphs
+        rev_inputs=None, # should be modified when making partial graphs (done)
         data_inputs={
             'loss': LSSD+O_IN,
             'concat': INPN.format(0),
@@ -126,11 +128,11 @@ def build(config):
         alpha_tensor=ALIN+ALPH,
         gen_outputs={
             'G': []},# [BRF0+OUTP, BRF1+OUTP]}, # should be modified when making partial graph (done)
-        a_output=NSP0+OUTN.format(0),
+        a_output=OUTN.format(0), # should be modified when making partial graphs (done)
         branch_types={
             'res_gen_pair': {
                 'new_subgraph': {
-                    'name': 'res_gen_pair_{:04}', # add leading zeros up to 6
+                    'name': 'res_gen_pair_{:04}', # add leading zeros up to 4
                     'in': INPT, #INP2],
                     'out': OUTP, #OUT2],
                     'config': 'block{}_clone',
@@ -142,7 +144,7 @@ def build(config):
                     'in': INPT, #INP2],
                     'out': OUTP, #OUT2],    eval_output is always the first index
                     'config': ['to_image', 'clone'],
-                    'outputs': [OUTP, OUT2],
+                    'outputs': [OUTP], #OUT2],
                 },
                 'loss': {
                     'name': 'cqs_loss_set_{:02}',
@@ -208,12 +210,12 @@ def build(config):
         (BRF0, {'config': ['to_image', 'clone']}),
         (BRF1, {'config': ['to_image', 'clone']}),
         (BRGU, {'config': ['to_image']}),
-        (GNF0, {'config': ['block0', 'clone']}),
+        (GNF0, {'config': ['block0', 'clone', 'base']}),
         (GNF1, {'config': ['block1', 'clone']}),
         (GNF2, {'config': ['block1', 'clone']}),
-        (DSC0, {'config': ['block0']}),
+        (DSC0, {'config': ['block0', 'base']}),
         (DSC1, {'config': ['block1']}),
-        (DGN0, {'config': ['block0']}),
+        (DGN0, {'config': ['block0', 'base']}),
         (DGN1, {'config': ['block1']}),
         (NCN0, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}), # breadth_count + real_input #### NEED one per branch_set
         (NSP0, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}),
@@ -233,10 +235,10 @@ def build(config):
 
     G.add_edges_from([
         # Main path
-        (GNF0, GNF1, {'out': [OUTP, OUT2], 'in': [INPT, INP2]}),
-        (GNF0, GNF2, {'out': [OUTP, OUT2], 'in': [INPT, INP2]}),
-        (GNF1, BRF0, {'out': [OUTP, OUT2], 'in': [INPT, INP2], 'mod': 'res_gen_pair'}),
-        (GNF2, BRF1, {'out': [OUTP, OUT2], 'in': [INPT, INP2], 'mod': 'res_gen_pair'}),
+        (GNF0, GNF1, {'out': OUTP, 'in': INPT}),
+        (GNF0, GNF2, {'out': OUTP, 'in': INPT}),
+        (GNF1, BRF0, {'out': OUTP, 'in': INPT, 'mod': 'res_gen_pair'}),
+        (GNF2, BRF1, {'out': OUTP, 'in': INPT, 'mod': 'res_gen_pair'}),
         (BRF0, NCN0, {'out': OUTP, 'in': INPN.format(1)}), # 0 is for the real_input
         (BRF1, NCN0, {'out': OUTP, 'in': INPN.format(2)}),
         (NCN0, LSSU, {'out': OUTP, 'in': INPT}),

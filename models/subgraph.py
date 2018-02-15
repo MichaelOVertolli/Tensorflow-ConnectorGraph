@@ -298,6 +298,22 @@ class BuiltSubGraph(SubGraph):
             self.saver.restore(sess, self.log_dir)
 
 
+    def copy_vars(self, new_scope):
+        variables = self.graph.get_collection('variables')
+        nvariables = []
+        for var in variables:
+            name = '/'.join([new_scope]+var.name.split(':')[0].split('/')[1:])
+            nvariables.append(tf.Variable(var, name=name))
+        return nvariables
+
+
+    def save_clone(self, model_name, log_dir, sess):
+        variables = self.copy_vars(model_name)
+        sess.run(tf.variables_initializer(variables))
+        saver = tf.train.Saver(variables)
+        saver.save(sess, os.path.join(log_dir, model_name))
+
+
 class FrozenSubGraph(SubGraph):
     def __init__(self, model_name, config_type, frozen_graph_def, inpts, outpts):
         super(FrozenSubGraph, self).__init__(model_name, config_type, tf.Graph())

@@ -39,7 +39,7 @@ STEP = 'step'
 
 class Trainer(object):
     def __init__(self, model_name, model_type, config, log_folder=None,
-                 data_name='CelebA', run_type='train', c_graph=None):
+                 data_name='CelebA', run_type='train', c_graph=None, save=True):
         self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
         if log_folder is None:
@@ -84,7 +84,10 @@ class Trainer(object):
                                           self.img_size,
                                           self.data_format,
                                           self.run_type)
-            self.saver = tf.train.Saver()
+            if save:
+                self.saver = tf.train.Saver()
+            else:
+                self.saver = None
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
 
             

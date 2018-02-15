@@ -17,6 +17,7 @@
 
 from errors import FirstInitialization
 import numpy as np
+import os
 from subgraph import BuiltSubGraph
 import tensorflow as tf
 from utils import save_image
@@ -74,7 +75,11 @@ def slerp(val, low, high):
     return np.sin((1.0-val)*omega) / so * low + np.sin(val*omega) / so * high
 
 
-def init_subgraph(subgraph_name, type_, log_dir=None):
+def init_subgraph(subgraph_name, type_, log_dir=None, convert_from=None, log_dir_from=None):
+    if convert_from is not None:
+        with tf.Session(graph=tf.Graph()) as sess:
+            subgraph = BuiltSubGraph(convert_from, type_, sess, log_dir_from)
+            subgraph.save_clone(subgraph_name, log_dir, sess)
     try:
         with tf.Session(graph=tf.Graph()) as sess:
             subgraph = BuiltSubGraph(subgraph_name, type_, sess, log_dir)

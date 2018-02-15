@@ -103,10 +103,10 @@ def convert(graph, config, load_map={}):
                 config_type = '_'.join([config.mdl_type]+config_mod)
         print node, config_type
         try:
-            log_dir = load_map[node]
+            log_dir, convert_from, log_dir_from = load_map[node]
         except KeyError:
-            log_dir = None
-        subgraph = init_subgraph(node, config_type, log_dir)
+            log_dir, convert_from, log_dir_from = None, None, None
+        subgraph = init_subgraph(node, config_type, log_dir, convert_from, log_dir_from)
         conngraph.add_subgraph(subgraph)
 
     conngraph.print_subgraphs()
@@ -144,4 +144,21 @@ def build_variables(conngraph, sess, train_sets):
                 var_set.append(s_set)
             else:
                 var_set.extend(tf.get_collection(subgraph+VARS))
+    return variables
+
+
+def branching_build_variables(conngraph, sess, train_sets): # test this
+    variables = {}
+    for net in train_sets:
+        if type(train_sets[net]) is dict:
+            variables[net] = {}
+            for gloss in train_sets[net]:
+                loss_vars = []
+                for sub in train_sets[net][gloss]:
+                    loss_vars.extend(tf.get_collection(sub+VARS))
+                variables[net][gloss] = loss_vars
+        else:
+            variables[net] = []
+            for sub in train_sets[net]:
+                variables[net].extend(tf.get_collection(sub+VARS))
     return variables

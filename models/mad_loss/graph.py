@@ -27,12 +27,13 @@ def build_graph(config):
     inpt = tf.placeholder(tf.float32, [None, None, None, None], name='input')
     tf.add_to_collection('inputs', inpt)
     inpt = inpt[config.batch_size:, :, :, :] # strips real_input
-    inpt_bs = config.count * config.batch_size
+    count = config.count-1
+    inpt_bs = count * config.batch_size
     indices = range(0, inpt_bs+1, config.batch_size)
     indices = zip(indices[:-1], indices[1:])
     outputs = []
     for i, j in indices:
-        x = tf.tile(inpt[i:j, :, :, :], [config.count, 1, 1, 1])
+        x = tf.tile(inpt[i:j, :, :, :], [count, 1, 1, 1])
         x = tf.reduce_sum(tf.abs(x - inpt), 0)/(inpt_bs - config.batch_size) # collapses out the zeros where x = x
         x = tf.reduce_mean(x)/2.0 # re-normalize to [0, 1]
         x = 1.0 - x # identity is bad for diversity so flip value 
