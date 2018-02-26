@@ -64,6 +64,8 @@ def build_train_ops(conngraph, inputs, outputs,
                 g_losses.append(g_loss)
                 g_optims.append(g_optim)
 
+            g_loss = tf.reduce_mean(g_losses)
+            g_loss = tf.identity(g_loss, name='g_loss')
             d_loss = sess.graph.get_tensor_by_name(loss_tensors['D'])
             d_out = d_loss - k_t * g_loss
             d_out = tf.identity(d_out, name='d_loss')
@@ -101,6 +103,7 @@ def build_train_ops(conngraph, inputs, outputs,
 
 
             summary_set.extend([
+                tf.summary.scalar('loss/g_loss', g_loss),
                 tf.summary.scalar('loss/d_loss', d_out),                
                 tf.summary.scalar('misc/measure', measure),
                 tf.summary.scalar('misc/k_t', k_t),
