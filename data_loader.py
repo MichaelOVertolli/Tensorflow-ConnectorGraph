@@ -6,7 +6,7 @@ from models.friqa import toyiq
 
 def get_loader(root, batch_size, scale_size, data_format, split=None, is_grayscale=False, seed=None):
     dataset_name = os.path.basename(root)
-    if any([x in dataset_name for x in  ['CelebA', 'lsun', 'msceleb', 'oxfordflower', 'imgnet', 'grass', 'brick', 'pflowers']]) and split:
+    if any([x in dataset_name for x in  ['CelebA', 'lsun', 'msceleb', 'oxfordflower', 'imgnet', 'grass', 'brick', 'pflowers', 'celeb', 'mnist']]) and split:
         root = os.path.join(root, 'splits', split)
 
     for ext in ["jpg", "JPEG", "png"]:
@@ -21,7 +21,11 @@ def get_loader(root, batch_size, scale_size, data_format, split=None, is_graysca
 
     with Image.open(paths[0]) as img:
         w, h = img.size
-        shape = [h, w, 3]
+        if is_grayscale:
+            shape = [h, w, 1]
+        else:
+            shape = [h, w, 3]
+        
 
     filename_queue = tf.train.string_input_producer(list(paths), shuffle=False, seed=seed)
     reader = tf.WholeFileReader()
@@ -43,7 +47,7 @@ def get_loader(root, batch_size, scale_size, data_format, split=None, is_graysca
     if dataset_name in ['CelebA']:
         queue = tf.image.crop_to_bounding_box(queue, 50, 25, 128, 128)
         queue = tf.image.resize_nearest_neighbor(queue, [scale_size, scale_size])
-    elif any([x in dataset_name for x in  ['grass', 'brick', 'pflowers']]):
+    elif any([x in dataset_name for x in  ['grass', 'brick', 'pflowers', 'celeb', 'mnist']]):
         pass
     else:
         queue = tf.image.resize_nearest_neighbor(queue, [scale_size, scale_size])

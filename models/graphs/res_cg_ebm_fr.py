@@ -21,19 +21,19 @@ import networkx as nx
 
 #Models
 GENF = 'res_gen_pair_00'
-BRGF = 'res_bridge_0'
-GENR = 'res_rev_10'
-BRGR = 'res_bridge_1'
-DISC = 'res_rev_00'
-BRGD = 'res_bridge_2'
-DGEN = 'res_gen_pair_10'
-BRGU = 'res_bridge_3'
+BRGF = 'res_bridge_00'
+GENR = 'res_rev_00'
+BRGR = 'res_bridge_01'
+DISC = 'res_rev_01'
+BRGD = 'res_bridge_02'
+DGEN = 'res_gen_pair_01'
+BRGU = 'res_bridge_03'
 REST = 'res_train'
-CNCT = 'cqs_concat_0'
-SPLT = 'cqs_split_0'
-LSSG = 'cqs_loss_set_0'
-LSSD = 'cqs_loss_set_1'
-LSSR = 'cqs_loss_set_2'
+CNCT = 'cqs_concat_00'
+SPLT = 'cqs_split_00'
+LSSG = 'cqs_loss_set_00'
+LSSD = 'cqs_loss_set_01'
+LSSR = 'cqs_loss_set_02'
 ALIN = 'res_alphas_0'
 
 #Inputs
@@ -63,7 +63,15 @@ VARIABLES = '/variables'
 def build(config):
     G = nx.DiGraph(
         train_scope='res_train',
+        greyscale=False,
+        # frozen=['res_gen_pair', 'res_rev'],
         block_index=0,
+        last_index=2,
+        counts={
+            'res_bridge': 4,
+            'res_rev': 2,
+            'res_gen_pair': 2,
+            'cqs_loss_set': 3},
         loss_tensors={
             'G': LSSG+OUTP,
             'R': LSSR+OUTP,
@@ -99,7 +107,7 @@ def build(config):
         a_output=SPLT+DOUT,
         growth_types={
             BRGF: {
-                'name': 'res_gen_pair_0{}',
+                'name': 'res_gen_pair_{:02}',
                 'in': [INPT, INP2],
                 'out': [OUTP, OUT2],
                 'config': 'block{}_clone',
@@ -107,7 +115,7 @@ def build(config):
                 'rev': False,
             },
             BRGR: {
-                'name': 'res_rev_1{}',
+                'name': 'res_rev_{:02}',
                 'in': INPT,
                 'out': OUTP,
                 'config': 'block{}',
@@ -115,7 +123,7 @@ def build(config):
                 'rev': True,
             },
             BRGD: {
-                'name': 'res_rev_0{}',
+                'name': 'res_rev_0{:02}',
                 'in': INPT,
                 'out': OUTP,
                 'config': 'block{}',
@@ -123,7 +131,7 @@ def build(config):
                 'rev': True,
             },
             BRGU: {
-                'name': 'res_gen_pair_1{}',
+                'name': 'res_gen_pair_{:02}',
                 'in': INPT,
                 'out': OUTP,
                 'config': 'block{}',
@@ -162,10 +170,10 @@ def build(config):
     G.add_nodes_from([
         (BRGF, {'config': ['to_image', 'clone']}),
         (BRGU, {'config': ['to_image']}),
-        (GENF, {'config': ['block0', 'clone']}),
-        (GENR, {'config': ['block0']}),
-        (DISC, {'config': ['block0']}),
-        (DGEN, {'config': ['block0']}),
+        (GENF, {'config': ['block0', 'clone', 'base']}),
+        (GENR, {'config': ['block0', 'base']}),
+        (DISC, {'config': ['block0', 'base']}),
+        (DGEN, {'config': ['block0', 'base']}),
     ])
     # Train sets
     # G.add_nodes_from([

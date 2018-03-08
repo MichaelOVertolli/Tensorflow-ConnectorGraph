@@ -16,9 +16,11 @@
 ###############################################################################
 
 from nltk.corpus import wordnet as wn
+import numpy as np
 import os
 from PIL import Image
 from random import randint
+import tensorflow as tf
 import xml.etree.ElementTree as ET
 
 def get_hyponyms(syn):
@@ -164,3 +166,15 @@ def dataset_resize(imgs_dir, new_dir, new_size):
         o_im.save(os.path.join(new_dir, f))
 
         im.close()
+
+
+def mnist_to_imgs(new_dir, base_size=32):
+    if not os.path.exists(new_dir):
+        os.makedirs(new_dir)
+    mnist = tf.contrib.learn.datasets.load_dataset('mnist')
+    images = mnist.train.images
+    for i in range(images.shape[0]):
+        arr = np.reshape(images[i, :], [28, 28])
+        im = Image.fromarray(arr*255, 'I').convert('RGB')
+        o_im = im.resize([base_size, base_size], Image.NEAREST)
+        o_im.save(os.path.join(new_dir, '{:05}.jpg'.format(i)))

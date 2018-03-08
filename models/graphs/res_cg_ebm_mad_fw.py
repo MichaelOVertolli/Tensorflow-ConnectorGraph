@@ -71,11 +71,13 @@ def build(config):
     G = nx.DiGraph(
         train_scope='res_train',
         reversible=False,
+        greyscale=True,
         concat_type='mad_nconcat',
         split_type='mad_nsplit',
         froot=GNF0,
         rroot=None,
         block_index=1,
+        last_index=2,
         counts={
             'res_bridge': 4,
             'res_rev': 2,
@@ -143,7 +145,7 @@ def build(config):
                     'name': 'res_bridge_{:02}',
                     'in': INPT, #INP2],
                     'out': OUTP, #OUT2],    eval_output is always the first index
-                    'config': ['to_image', 'clone'],
+                    'config': ['to_image', 'clone', 'b+w'],
                     'outputs': [OUTP], #OUT2],
                 },
                 'loss': {
@@ -151,6 +153,7 @@ def build(config):
                     'orig_in': O_IN,
                     'auto_in': A_IN,
                     'out': OUTP,
+                    'config': ['b+w'],
                     'outputs': [OUTP],
                 },
                 'concat': {
@@ -207,9 +210,10 @@ def build(config):
     ])
     # SubGraphs with config mods
     G.add_nodes_from([
-        (BRF0, {'config': ['to_image', 'clone']}),
-        (BRF1, {'config': ['to_image', 'clone']}),
-        (BRGU, {'config': ['to_image']}),
+        (BRF0, {'config': ['to_image', 'clone', 'b+w']}),
+        (BRF1, {'config': ['to_image', 'clone', 'b+w']}),
+        (BRGD, {'config': ['b+w']}),
+        (BRGU, {'config': ['to_image', 'b+w']}),
         (GNF0, {'config': ['block0', 'clone', 'base']}),
         (GNF1, {'config': ['block1', 'clone']}),
         (GNF2, {'config': ['block1', 'clone']}),
@@ -219,7 +223,10 @@ def build(config):
         (DGN1, {'config': ['block1']}),
         (NCN0, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}), # breadth_count + real_input #### NEED one per branch_set
         (NSP0, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}),
-        (LSSU, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}), 
+        (LSSU, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}),
+        (LSG0, {'config': ['b+w']}),
+        (LSG1, {'config': ['b+w']}),
+        (LSSD, {'config': ['b+w']}),
     ])
     # Branching SubGraphs
     G.add_nodes_from([

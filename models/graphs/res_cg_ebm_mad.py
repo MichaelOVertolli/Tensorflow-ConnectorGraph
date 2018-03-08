@@ -20,32 +20,30 @@ import networkx as nx
 # convert to using new net subgraphs (pair, rev)
 
 #Models
-GNF0 = 'res_gen_pair_00000000'
-GNF1 = 'res_gen_pair_00000020'
-GNF2 = 'res_gen_pair_00000030'
+GNF0 = 'res_gen_pair_0000'
+GNF1 = 'res_gen_pair_0001'
+GNF2 = 'res_gen_pair_0002'
 BRF0 = 'res_bridge_00'
 BRF1 = 'res_bridge_01'
-GNR0 = 'res_rev_00000000'
-GNR1 = 'res_rev_00000020'
-GNR2 = 'res_rev_00000030'
-BRR0 = 'res_bridge_10'
-BRR1 = 'res_bridge_11'
-DSC0 = 'res_rev_00'
-DSC1 = 'res_rev_01'
-BRGD = 'res_bridge_20'
-DGN0 = 'res_gen_pair_10'
-DGN1 = 'res_gen_pair_11'
-BRGU = 'res_bridge_30'
+GNR0 = 'res_rev_0000'
+GNR1 = 'res_rev_0001'
+GNR2 = 'res_rev_0002'
+BRR0 = 'res_bridge_02'
+BRR1 = 'res_bridge_03'
+DSC0 = 'res_rev_0003'
+DSC1 = 'res_rev_0004'
+BRGD = 'res_bridge_04'
+DGN0 = 'res_gen_pair_0003'
+DGN1 = 'res_gen_pair_0004'
+BRGU = 'res_bridge_05'
 REST = 'res_train'
-NCN0 = 'mad_nconcat_0'
-NCN1 = 'mad_nconcat_1'
-NSP0 = 'mad_nsplit_0'
-NSP1 = 'mad_nsplit_1'
+NCN0 = 'mad_nconcat_00'
+NSP0 = 'mad_nsplit_00'
 LSG0 = 'cqs_loss_set_00'
 LSG1 = 'cqs_loss_set_01'
-LSR0 = 'cqs_loss_set_10'
-LSR1 = 'cqs_loss_set_11'
-LSSD = 'cqs_loss_set_20'
+LSR0 = 'cqs_loss_set_02'
+LSR1 = 'cqs_loss_set_03'
+LSSD = 'cqs_loss_set_04'
 LSSU = 'mad_loss_0'
 ALIN = 'res_alphas_0'
 
@@ -79,29 +77,48 @@ BCOUNT = 2
 def build(config):
     G = nx.DiGraph(
         train_scope='res_train',
+        reversible=True,
+        greyscale=False,
+        concat_type='mad_nconcat',
+        split_type='mad_nsplit',
+        froot=GNF0,
+        rroot=GNR0,
         block_index=1,
-        breadth_count=2,
-        subnets={
-            'generic': [LSSD, LSSU],
-            'leaf_nodes': [[LSG0, LSR0], [LSG1, LSR1]],},
+        last_index=3,
+        counts={
+            'res_bridge': 6,
+            'res_rev': 5,
+            'res_gen_pair': 5,
+            'cqs_loss_set': 5,
+            'mad_nconcat': 1,
+            'mad_nsplit': 1,},
+        breadth_count=BCOUNT,
         loss_tensors={
-            'G': [LSG0+OUTP, LSG1+OUTP],
-            'R': [LSR0+OUTP, LSR1+OUTP],
+            'G': OUTP,
+            'R': OUTP, # needs to be modified with partial graph (done)
             'D': LSSD+OUTP,
-            'U': [LSSU+OUTN.format(i) for i in range(BCOUNT)],},
+            'U': ['res_bridge', LSSU, OUTN],},
         train_sets={
-            'G': [[GNF0, GNF1, BRF0], [GNF0, GNF2, BRF1]],
-            'R': [[BRR0, GNR1, GNR0], [BRR1, GNR2, GNR0]],
+            'G': {
+                LSG0: [GNF0, GNF1, BRF0], # needs to be modified with partial graph (done)
+                LSG1: [GNF0, GNF2, BRF1]}, # needs to be modified with partial graph (done)
+            'R': {
+                LSR0: [BRR0, GNR1, GNR0],
+                LSR1: [BRR1, GNR2, GNR0]},
             'D': [DSC0, DSC1, DGN0, DGN1, BRGD, BRGU],},
-        img_pairs=[
-            ('G1', BRF0+OUTP),
-            ('G2', BRF1+OUTP),
-            ('R1', BRF0+OUT2),
-            ('R2', BRF1+OUT2),
-            ('A_G1', NSP0+OUTN.format(1)),
-            ('A_G2', NSP0+OUTN.format(2)),
-            ('A_D', NSP0+OUTN.format(0)),],
-        saver_pairs=[
+        img_pairs={
+            'G': ['res_bridge', OUTP],
+            'R': ['res_bridge', OUT2],
+            'A_': ['mad_nsplit', OUTN],
+            },
+            # ('G1', BRF0+OUTP),
+            # ('G2', BRF1+OUTP),
+            # ('R1', BRF0+OUT2),
+            # ('R2', BRF1+OUT2),
+            # ('A_G1', NSP0+OUTN.format(1)),
+            # ('A_G2', NSP0+OUTN.format(2)),
+            # ('A_D', NSP0+OUTN.format(0)),],
+        saver_pairs=dict([
             (BRR0, BRR0+VARIABLES),
             (BRR1, BRR1+VARIABLES),
             (GNR0, GNR0+VARIABLES),
@@ -117,50 +134,106 @@ def build(config):
             (DSC1, DSC1+VARIABLES),
             (DGN0, DGN0+VARIABLES),
             (DGN1, DGN1+VARIABLES),
-            (BRGU, BRGU+VARIABLES),],
-        gen_tensor=[BRF0+OUTP, BRF1+OUTP],
-        gen_input=GNR0+INPT,
-        rev_inputs=[BRR0+INPT, BRR1+INPT],
-        data_inputs=[
-            NCN0+INPN.format(0),
-            LSSD+O_IN,],
+            (BRGU, BRGU+VARIABLES),]),
+        gen_tensor=[],
+        gen_input=GNF0+INPT,
+        rev_inputs=INPT,
+        data_inputs={
+            'loss': LSSD+O_IN,
+            'concat': INPN.format(0),
+            },
         alpha_tensor=ALIN+ALPH,
         gen_outputs={
-            'G': [BRF0+OUTP, BRF1+OUTP],
-            'R': [BRF0+OUT2, BRF1+OUT2]},
-        a_output=NSP0+OUTN.format(0),
-        growth_groups={
+            'G': [],
+            'R': []},
+        a_output=OUTN.format(0),
+        branch_types={
             'res_gen_pair': {
-                'new_subgraph': 'res_gen_pair_{}00', # add leading zeros up to 6
-                'in': [INPT, INP2],
-                'out': [OUTP, OUT2],
-                'config': 'block{}_clone',
-                'train': 'G',
-                'count': 2,
+                'new_subgraph': {
+                    'name': 'res_gen_pair_{:04}', # add leading zeros up to 4
+                    'in': [INPT, INP2],
+                    'out': [OUTP, OUT2],
+                    'config': 'block{}_clone',
+                    'train': 'G',
+                    'rev': False,
+                },
+                'bridge': {
+                    'name': 'res_bridge_{:02}',
+                    'in': [INPT, INP2],
+                    'out': [OUTP, OUT2],  # eval_output is always the first index
+                    'config': ['to_image', 'clone'],
+                    'outputs': [OUTP, OUT2],
+                },
+                'loss': {
+                    'name': 'cqs_loss_set_{:02}',
+                    'orig_in': O_IN,
+                    'auto_in': A_IN,
+                    'out': OUTP,
+                    'outputs': [OUTP],
+                },
+                'concat': {
+                    'name': 'mad_nconcat_{:02}',
+                    'in': INPN,
+                    'out': OUTP,
+                },
+                'split': {
+                    'name': 'mad_nsplit_{:02}',
+                    'in': INPT,
+                    'out': OUTN,
+                },
             },
             'res_rev': {
-                'new_subgraph': 'res_rev_{}00',
-                'in': INPT,
-                'out': OUTP,
-                'config': 'block{}',
-                'train': 'R',
-                'count': 2,
+                'new_subgraph': {
+                    'name': 'res_rev_{:04}', # add leading zeros up to 4
+                    'in': INPT, 
+                    'out': OUTP,
+                    'config': 'block{}',
+                    'train': 'R',
+                    'rev': True,
+                },
+                'bridge': {
+                    'name': 'res_bridge_{:02}',
+                    'in': INPT,
+                    'out': OUTP,
+                    'inputs': [INPT],
+                    'fout': [OUTP, OUT2],
+                },
+                'loss': {
+                    'name': 'cqs_loss_set_{:02}',
+                    # 'orig_in': O_IN,
+                    # 'auto_in': A_IN,
+                    'in': [O_IN, A_IN],
+                    'out': OUTP,
+                    'outputs': [OUTP],
+                },
+                'concat': {
+                    'name': 'mad_nconcat_{:02}',
+                    'in': INPN,
+                    'out': OUTP,
+                },
+                'split': {
+                    'name': 'mad_nsplit_{:02}',
+                    'in': INPT,
+                    'out': OUTN,
+                },
             },
         },
         growth_types={
             BRGD: {
-                'new_subgraph': 'res_rev_0{}',
+                'name': 'res_rev_{:02}',
                 'in': INPT,
                 'out': OUTP,
                 'config': 'block{}',
                 'train': 'D',
+                'rev': True,
             },
             BRGU: {
-                'new_subgraph': 'res_gen_pair_1{}',
+                'name': 'res_gen_pair_{:02}',
                 'in': INPT,
                 'out': OUTP,
                 'config': 'block{}',
                 'train': 'D',
+                'rev': False,
             },
         },
     )
@@ -174,7 +247,7 @@ def build(config):
         (GNF0, {'inputs': [INPT]}),
         (BRR0, {'inputs': [INPT]}),
         (BRR1, {'inputs': [INPT]}),
-        (NCN0, {'inputs': [OUTN]}),
+        (NCN0, {'inputs': [INPN.format(0)]}),
         (LSSD, {'inputs': [O_IN]}),
         (ALIN, {'inputs': alpha_inputs}),
     ])
@@ -195,40 +268,58 @@ def build(config):
         (BRF0, {'config': ['to_image', 'clone']}),
         (BRF1, {'config': ['to_image', 'clone']}),
         (BRGU, {'config': ['to_image']}),
-        (GNF0, {'config': ['block0', 'clone']}),
+        (GNF0, {'config': ['block0', 'clone', 'base']}),
         (GNF1, {'config': ['block1', 'clone']}),
         (GNF2, {'config': ['block1', 'clone']}),
-        (GNR0, {'config': ['block0']}),
+        (GNR0, {'config': ['block0', 'base']}),
         (GNR1, {'config': ['block1']}),
         (GNR2, {'config': ['block1']}),
-        (DSC0, {'config': ['block0']}),
+        (DSC0, {'config': ['block0', 'base']}),
         (DSC1, {'config': ['block1']}),
-        (DGN0, {'config': ['block0']}),
+        (DGN0, {'config': ['block0', 'base']}),
         (DGN1, {'config': ['block1']}),
         (NCN0, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}), # breadth_count + real_input
-        (NCN1, {'config': ['count{}'.format(2)]}),
         (NSP0, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}),
-        (NSP1, {'config': ['count{}'.format(2)]}),
         (LSSU, {'config': ['count{}'.format(G.graph['breadth_count']+1)]}), 
     ])
+
+    # Branching SubGraphs
+    G.add_nodes_from([
+        (GNF1, {
+            'branching': 'res_gen_pair',
+            'rev_pair': [GNR1, 'res_rev']}),
+        (GNF2, {
+            'branching': 'res_gen_pair',
+            'rev_pair': [GNR2, 'res_rev']}),
+    ])
+
+    # Paired Bridges
+    G.add_nodes_from([
+        (BRR0, {
+            'paired': BRF0}),
+        (BRR1, {
+            'paired': BRF1}),
+        (BRF0, {
+            'paired': BRR0}),
+        (BRF1, {
+            'paired': BRR1}),
+    ])
+    
     # Remaining inner SubGraphs
     # None
 
     G.add_edges_from([
         # Reverse path
-        (NSP1, BRR0, {'out': OUTN.format(0), 'in': INPT}),
-        (BRR0, GNR1, {'out': OUTP, 'in': INPT, 'mod': BRR0}),
-        (GNR1, NCN1, {'out': OUTP, 'in': INPN.format(0), 'del': True}),
-        (NSP1, BRR1, {'out': OUTN.format(1), 'in': INPT}),
-        (BRR1, GNR2, {'out': OUTP, 'in': INPT, 'mod': BRR1}),
-        (GNR2, NCN1, {'out': OUTP, 'in': INPN.format(1), 'del': True}),
-        (NCN1, GNR0, {'out': OUTP, 'in': INPT}),
+        (BRR0, GNR1, {'out': OUTP, 'in': INPT, 'mod': 'res_rev'}),
+        (GNR1, GNR0, {'out': OUTP, 'in': INPT}),
+        (BRR1, GNR2, {'out': OUTP, 'in': INPT, 'mod': 'res_rev'}),
+        (GNR2, GNR0, {'out': OUTP, 'in': INPT}),
         (GNR0, GNF0, {'out': OUTP, 'in': INP2}),
         (GNF0, GNF1, {'out': [OUTP, OUT2], 'in': [INPT, INP2]}),
-        (GNF1, BRF0, {'out': [OUTP, OUT2], 'in': [INPT, INP2], 'mod': BRF0}),
+        (GNF1, BRF0, {'out': [OUTP, OUT2], 'in': [INPT, INP2], 'mod': 'res_gen_pair'}),
         (GNF0, GNF2, {'out': [OUTP, OUT2], 'in': [INPT, INP2]}),
         (BRF0, LSR0, {'out': [OUTP, OUT2], 'in': [O_IN, A_IN]}),
-        (GNF2, BRF1, {'out': [OUTP, OUT2], 'in': [INPT, INP2], 'mod': BRF1}),
+        (GNF2, BRF1, {'out': [OUTP, OUT2], 'in': [INPT, INP2], 'mod': 'res_gen_pair'}),
         (BRF1, LSR1, {'out': [OUTP, OUT2], 'in': [O_IN, A_IN]}),
         # Main path
         # (GENF, BRGF, {'out': [OUTP, OUT2], 'in': [INPT, INP2]}),

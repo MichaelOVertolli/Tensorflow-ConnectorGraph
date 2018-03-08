@@ -21,7 +21,7 @@ from errors import SessionGraphError, GraphNotConnectedError
 from errors import NoVariableExistsError, MultipleVariablesExistError
 from errors import NoSaversError
 import os
-from subgraph import SubGraph
+from subgraph import FrozenSubGraph
 import tensorflow as tf
 from types import MethodType
 
@@ -54,6 +54,7 @@ class ConnectorGraph(object):
             except IndexError:
                 break
             subgraph = self.subgraphs[subgraph_name]
+            
             subgraph.restore(subgraph_name, subgraph.config_type, sess,
                              self.input_maps[subgraph_name])
             self.rename_collections(subgraph, sess)
@@ -85,8 +86,9 @@ class ConnectorGraph(object):
         if input_map is None:
             input_map = {}
         for conn in connections:
-            pre_scope_to_tensor = '/'.join(conn.to_tensor.split('/')[1:])
-            input_map[pre_scope_to_tensor] = graph.get_tensor_by_name(conn.from_tensor)
+            to_tensor = '/'.join(conn.to_tensor.split('/')[1:])
+            from_tensor = conn.from_tensor
+            input_map[to_tensor] = graph.get_tensor_by_name(from_tensor)
         return input_map
 
 

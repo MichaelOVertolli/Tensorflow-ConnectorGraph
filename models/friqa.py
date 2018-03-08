@@ -310,3 +310,11 @@ def prep_and_call_qs(ref, dist):
     gms_, chrome = qs(((ref+1)/2)*255., ((dist+1)/2)*255.)
     #out = tf.Print(out, [out])
     return 1.-gms_, 1.-chrome#(2. - out)/2.
+
+
+def prep_and_call_qs_grey(ref, dist):
+    r = tf.squeeze(ref)
+    d = tf.squeeze(dist)
+    c = tf.constant(0.0026)
+    gms_ = tf.reduce_mean(gms(((r+1)/2)*255., ((d+1)/2)*255., c))
+    return 1.-gms_, 0.

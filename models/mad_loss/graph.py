@@ -34,7 +34,7 @@ def build_graph(config):
     outputs = []
     for i, j in indices:
         x = tf.tile(inpt[i:j, :, :, :], [count, 1, 1, 1])
-        x = tf.reduce_sum(tf.abs(x - inpt), 0)/(inpt_bs - config.batch_size) # collapses out the zeros where x = x
+        x = tf.reduce_sum(tf.abs(x - inpt), 0)/(inpt_bs - config.batch_size)
         x = tf.reduce_mean(x)/2.0 # re-normalize to [0, 1]
         x = 1.0 - x # identity is bad for diversity so flip value 
         outputs.append(x)
