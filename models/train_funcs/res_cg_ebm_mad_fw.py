@@ -51,14 +51,15 @@ def build_train_ops(conngraph, inputs, outputs,
 
             g_losses = []
             g_optims = []
-            for g_loss_tensor in loss_tensors['G']: # finish this
+            for g_loss_tensor in loss_tensors['G']:
                 g_loss_name = g_loss_tensor.split('/')[0]
+                g_index = g_loss_name.split('_')[1]
                 g_loss = sess.graph.get_tensor_by_name(g_loss_tensor)
                 u_loss_tensor = loss_tensors['U'][g_loss_name]
                 index = re.search('\d+(?=\:)', u_loss_tensor).group()
                 u_loss = sess.graph.get_tensor_by_name(u_loss_tensor)
                 g_loss = g_loss + conngraph.config.lambda_u*u_loss
-                g_loss = tf.identity(g_loss, name='g_loss{}'.format(index))
+                g_loss = tf.identity(g_loss, name='g_loss{}'.format(g_index))
                 g_optimizer = tf.train.AdamOptimizer(g_lr)
                 g_optim = g_optimizer.minimize(g_loss, var_list=variables['G'][g_loss_name])
                 g_losses.append(g_loss)
@@ -98,7 +99,7 @@ def build_train_ops(conngraph, inputs, outputs,
                 summary_set.append(tf.summary.scalar('misc/alpha_'+str(i), sess.graph.get_tensor_by_name(alpha_tensor.format(i))))
 
             for i in range(len(g_losses)):
-                summary_set.append(tf.summary.scalar('loss/g_loss{}'.format(i), g_losses[i]))
+                summary_set.append(tf.summary.scalar('loss/{}'.format(g_losses[i].name), g_losses[i]))
                 tf.add_to_collection('outputs_interim', g_losses[i])
 
 
@@ -122,7 +123,6 @@ def build_train_ops(conngraph, inputs, outputs,
 
         tf.add_to_collection('step', step)
         
-        sess.graph.clear_collection('outputs')
         sess.graph.clear_collection('outputs')
         for g_loss in g_losses:
             tf.add_to_collection('outputs_interim', g_loss)
@@ -195,7 +195,6 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, *
         autoencode_set = [('real', self.x_fixed)]
         for name, outputs in gen_outputs.items():
             for o in outputs:
-                name = o.split('/')
                 index = re.search('(?<=_)\d+', o).group()
                 x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(o), feeds)
                 if name == 'G':
@@ -225,7 +224,8 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, *
         #interpolate
         z_flex = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
 
-        for i, g_out in  enumerate(gen_outputs['G']):
+        for g_out in gen_outputs['G']:
+            index = re.search('(?<=_)\d+', g_out).group()
             generated = []
             for _, ratio in enumerate(np.linspace(0, 1, 10)):
                 z = np.stack([slerp(ratio, r1, r2) for r1, r2 in zip(z_fixed, z_flex)])
@@ -242,6 +242,6 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, *
 
             all_img_num = np.prod(generated.shape[:2])
             batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
-            save_image(batch_generated, os.path.join(trainer.log_dir, '{}_interp_G{}.png'.format(step, i)), nrow=10)
+            save_image(batch_generated, os.path.join(trainer.log_dir, '{}_interp_G{}.png'.format(step, index)), nrow=10)
 
     return send_outputs
