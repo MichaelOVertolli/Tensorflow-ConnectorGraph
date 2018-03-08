@@ -103,10 +103,10 @@ def convert(graph, config, load_map={}):
                 config_type = '_'.join([config.mdl_type]+config_mod)
         print node, config_type
         try:
-            log_dir, convert_from, log_dir_from = load_map[node]
+            log_dir, convert_from, log_dir_from, frozen = load_map[node]
         except KeyError:
-            log_dir, convert_from, log_dir_from = None, None, None
-        subgraph = init_subgraph(node, config_type, log_dir, convert_from, log_dir_from)
+            log_dir, convert_from, log_dir_from, frozen = None, None, None, None
+        subgraph = init_subgraph(node, config_type, log_dir, convert_from, log_dir_from, frozen)
         conngraph.add_subgraph(subgraph)
 
     conngraph.print_subgraphs()
