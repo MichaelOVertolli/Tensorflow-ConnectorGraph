@@ -17,7 +17,7 @@
 
 from ..connectorgraph import ConnectorGraph
 from ..errors import FirstInitialization
-from ..graphs.converter import build_variables
+from ..graphs.converter import branching_build_variables
 import numpy as np
 import os
 from skimage.measure import block_reduce
@@ -25,6 +25,7 @@ from scipy.ndimage import zoom
 from ..subgraph import BuiltSubGraph, SubGraph
 import tensorflow as tf
 from ..model_utils import *
+import re
 import time
 
 
@@ -35,25 +36,12 @@ def build_train_ops(conngraph, inputs, outputs,
     with tf.Session(graph=tf.Graph()) as sess:
         conngraph.connect_graph(inputs, outputs, sess)
 
-        variables = build_variables(conngraph, sess, train_sets) # build_variables needs to be adjusted
-        
+        variables = branching_build_variables(conngraph, sess, train_sets) # build_variables needs to be adjusted        
         step = tf.Variable(0, dtype=tf.int32, name='step', trainable=False)
         
         with tf.variable_scope(train_scope):
 
             k_t = tf.Variable(0., trainable=False, name='k_t')
-
-            u_losses = [sess.graph.get_tensor_by_name(loss_tensor) for loss_tensor in loss_tensors['U']]
-            g_losses = [sess.graph.get_tensor_by_name(loss_tensor) for loss_tensor in loss_tensors['G']]
-            g_losses = [g_losses[i]+(conngraph.config.lambda_u*u_losses[i])
-                        for i in range(len(g_losses))] # add diversity loss to gen loss
-            r_losses = [sess.graph.get_tensor_by_name(loss_tensor) for loss_tensor in loss_tensors['R']]
-            g_losses = [tf.identity(g_loss, name='g_loss{}'.format(i)) for i, g_loss in enumerate(g_losses)]
-            r_losses = [tf.identity(r_loss, name='r_loss{}'.format(i)) for i, r_loss in enumerate(r_losses)]
-
-            d_loss = sess.graph.get_tensor_by_name(loss_tensors['D'])
-            d_out = d_loss - k_t * g_loss
-            d_out = tf.identity(d_out, name='d_loss')
 
             g_lr = tf.Variable(config.g_lr, name='g_lr')
             r_lr = tf.Variable(config.r_lr, name='r_lr')
@@ -63,24 +51,52 @@ def build_train_ops(conngraph, inputs, outputs,
             r_lr_update = tf.assign(r_lr, tf.maximum(r_lr * 0.5, config.lr_lower_boundary), name='r_lr_update')
             d_lr_update = tf.assign(d_lr, tf.maximum(d_lr * 0.5, config.lr_lower_boundary), name='d_lr_update')
 
-            g_optimizers = [tf.train.AdamOptimizer(g_lr) for _ in g_losses]
-            r_optimizers = [tf.train.AdamOptimizer(r_lr) for _ in r_losses]
+            g_losses = []
+            g_optims = []
+            for g_loss_tensor in loss_tensors['G']:
+                g_loss_name = g_loss_tensor.split('/')[0]
+                g_index = g_loss_name.split('_')[-1]
+                g_loss = sess.graph.get_tensor_by_name(g_loss_tensor)
+                u_loss_tensor = loss_tensors['U'][g_loss_name]
+                index = re.search('\d+(?=\:)', u_loss_tensor).group()
+                u_loss = sess.graph.get_tensor_by_name(u_loss_tensor)
+                g_loss = g_loss + conngraph.config.lambda_u*u_loss
+                g_loss = tf.identity(g_loss, name='g_loss{}'.format(g_index))
+                g_optimizer = tf.train.AdamOptimizer(g_lr)
+                g_optim = g_optimizer.minimize(g_loss, var_list=variables['G'][g_loss_name])
+                g_losses.append(g_loss)
+                g_optims.append(g_optim)
+
+            r_losses = []
+            r_optims = []
+            for r_loss_tensor in loss_tensors['R']:
+                r_loss_name = r_loss_tensor.split('/')[0]
+                r_index = r_loss_name.split('_')[-1]
+                r_loss = sess.graph.get_tensor_by_name(r_loss_tensor)
+                index = re.search('(?<=_)\d+', r_loss_tensor).group()
+                r_loss = tf.identity(r_loss, name='r_loss{}'.format(r_index))
+                r_optimizer = tf.train.AdamOptimizer(r_lr)
+                r_optim = r_optimizer.minimize(r_loss, var_list=variables['R'][r_loss_name])
+                r_losses.append(r_loss)
+                r_optims.append(r_optim)
+
+            g_loss = tf.reduce_mean(g_losses)
+            g_loss = tf.identity(g_loss, name='g_loss')
+            d_loss = sess.graph.get_tensor_by_name(loss_tensors['D'])
+            d_out = d_loss - k_t * g_loss
+            d_out = tf.identity(d_out, name='d_loss')
+
             d_optimizer = tf.train.AdamOptimizer(d_lr)
 
-            # TODO: add incremental variable training as separate mod
-            g_optims = [g_optimizer.minimize(g_losses[i], var_list=variables['G'][i]) for i, g_optimizer in enumerate(g_optimizers)]
-            r_optims = [r_optimizer.minimize(r_losses[i], var_list=variables['R'][i]) for i, r_optimizer in enumerate(r_optimizers)]
-            
             d_optim = d_optimizer.minimize(d_out, global_step=step, var_list=variables['D'])
 
-            g_optims = tf.group(g_optims)
-            r_optims = tf.group(r_optims)
+            optims = g_optims+r_optims+[d_optim]
 
             balance = config.gamma * d_loss - tf.reduce_mean(g_losses)
             measure = d_loss + tf.abs(balance)
             measure = tf.identity(measure, name='measure')
 
-            with tf.control_dependencies([d_optim, g_optims, r_optims]):
+            with tf.control_dependencies(optims):
                 k_update = tf.assign(k_t, tf.clip_by_value(k_t + config.lambda_k * balance, 0, 1))
                 k_update = tf.identity(k_update, name='k_update')
 
@@ -97,17 +113,17 @@ def build_train_ops(conngraph, inputs, outputs,
             for i in range(conngraph.config.repeat_num-1):
                 summary_set.append(tf.summary.scalar('misc/alpha_'+str(i), sess.graph.get_tensor_by_name(alpha_tensor.format(i))))
 
-            for i in range(g_losses):
-                summary_set.append(tf.summary.scalar('loss/g_loss{}'.format(i), g_losses[i]))
-                tf.add_to_collection('outputs_interim', g_losses[i])
+            for gl in g_losses:
+                summary_set.append(tf.summary.scalar('loss/{}'.format(gl.name.split(':')[0]), gl))
+                tf.add_to_collection('outputs_interim', gl)
 
-            for i in range(r_losses):
-                summary_set.append(tf.summary.scalar('loss/r_loss{}'.format(i), r_losses[i]))
-                tf.add_to_collection('outputs_interim', r_losses[i])
+            for rl in r_losses:
+                summary_set.append(tf.summary.scalar('loss/{}'.format(rl.name.split(':')[0]), rl))
+                tf.add_to_collection('outputs_interim', rl)
 
             summary_set.extend([
+                tf.summary.scalar('loss/g_loss', g_loss),
                 tf.summary.scalar('loss/d_loss', d_out),
-                
                 tf.summary.scalar('misc/measure', measure),
                 tf.summary.scalar('misc/k_t', k_t),
                 tf.summary.scalar('misc/g_lr', g_lr),
@@ -127,11 +143,10 @@ def build_train_ops(conngraph, inputs, outputs,
         tf.add_to_collection('step', step)
         
         sess.graph.clear_collection('outputs')
-        sess.graph.clear_collection('outputs')
-        for g_loss in g_losses:
-            tf.add_to_collection('outputs_interim', g_loss)
-        for r_loss in r_losses:
-            tf.add_to_collection('outputs_interim', r_loss)
+        for gl in g_losses:
+            tf.add_to_collection('outputs_interim', gl)
+        for rl in r_losses:
+            tf.add_to_collection('outputs_interim', rl)
         tf.add_to_collection('outputs_interim', d_out)
         tf.add_to_collection('outputs_interim', k_t)
         tf.add_to_collection('outputs_interim', summary_op)
@@ -145,7 +160,7 @@ def build_train_ops(conngraph, inputs, outputs,
     return conngraph
 
 
-def build_feed_func(gen_tensor, gen_input, rev_inputs, data_inputs, alpha_tensor, **keys):
+def build_feed_func(gen_tensor, gen_input, rev_inputs, data_inputs, alpha_tensor, greyscale, **keys):
     def get_feed_dict(self, trainer):
 
         config = trainer.c_graph.config
@@ -175,10 +190,18 @@ def build_feed_func(gen_tensor, gen_input, rev_inputs, data_inputs, alpha_tensor
                 self.alphas_feed[trainer.c_graph.block_index][1] = val
             feeds.extend(self.alphas_feed)
 
-        reverse = [(rinput, np.zeros([trainer.batch_size, 3, trainer.img_size, trainer.img_size]))
-                   for rinput in rev_inputs]
-        gen_outputs = [trainer.sess.run(gtensor, dict(feeds+reverse)) for gtensor in gen_tensor]
-        feeds.extend([(rev_inputs[i], gen_outputs[i]) for i in range(len(rev_inputs))])
+        if greyscale:
+            channels = 1
+        else:
+            channels = 3
+        reverse = [(rinput, np.zeros([trainer.batch_size, channels, trainer.img_size, trainer.img_size]))
+                   for rinput in rev_inputs.values()]
+        # gen_outputs = [(gtensor, trainer.sess.run(gtensor, dict(feeds+reverse)))
+        #                for gtensor in gen_tensor]
+        
+        for gtensor in gen_tensor:
+            feeds.append((rev_inputs[gtensor], trainer.sess.run(gtensor, dict(feeds+reverse))))
+        # feeds.extend([(rev_inputs[i], gen_outputs[i]) for i in range(len(rev_inputs))])
         
         feed_dict = dict(feeds)
         return feed_dict
@@ -186,7 +209,7 @@ def build_feed_func(gen_tensor, gen_input, rev_inputs, data_inputs, alpha_tensor
     return get_feed_dict
 
 
-def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, **keys):
+def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, gen_tensor, a_output, **keys):
     def send_outputs(self, trainer, step):
         if not hasattr(self, 'z_fixed'):
             self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
@@ -201,21 +224,30 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, *
         feeds = [(gen_input, z_fixed)]
         if alphas:
             feeds.extend(self.alphas_feed)
-        reverse = [(r_inpt, np.zeros([trainer.batch_size, 3, trainer.img_size, trainer.img_size])) for r_inpt in rev_inputs]
-        g_outputs = [trainer.sess.run(g_out, dict(feeds+reverse)) for g_out in  gen_outputs['G']]
-        for i, r_inpt in enumerate(rev_inputs):
-            feeds.append((r_inpt, g_outputs[i]))
+        reverse = [(r_inpt, np.zeros([trainer.batch_size, 3, trainer.img_size, trainer.img_size]))
+                   for r_inpt in rev_inputs.values()]
+        for gtensor in gen_tensor:
+            feeds.append((rev_inputs[gtensor], trainer.sess.run(gtensor, dict(feeds+reverse))))
+        # g_outputs = [trainer.sess.run(g_out, dict(feeds+reverse)) for g_out in  gen_outputs['G']]
+        # for i, r_inpt in enumerate(rev_inputs):
+        #     feeds.append((r_inpt, g_outputs[i]))
         feeds = dict(feeds)
 
-        for name, output in gen_outputs.items():
-            x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(output), feeds)
-            if name == 'G':
-                gen = x_gen
-            save_image(denorm_img_numpy(x_gen, trainer.data_format),
-                       os.path.join(trainer.log_dir, '{}_{}.png'.format(step, name)))
+        autoencode_set = [('real', self.x_fixed)]
+        for name, outputs in gen_outputs.items():
+            for o in outputs:
+                index = re.search('(?<=_)\d+', o).group()
+                x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(o), feeds)
+                if name == 'G':
+                    autoencode_set.append(('gen{}'.format(index), x_gen))
+                save_image(denorm_img_numpy(x_gen, trainer.data_format),
+                           os.path.join(trainer.log_dir, '{}_{}{}.png'.format(step, name, index)))
+            #         gen = x_gen
+            # save_image(denorm_img_numpy(x_gen, trainer.data_format),
+            #            os.path.join(trainer.log_dir, '{}_{}.png'.format(step, name)))
 
         #autoencode
-        for k, img in (('real', self.x_fixed), ('gen', gen)):
+        for k, img in autoencode_set:
             if img is None:
                 continue
             if img.shape[3] in [1, 3]:
@@ -236,7 +268,8 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, *
         #interpolate
         z_flex = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
 
-        for i, g_out in  enumerate(gen_outputs['G']):
+        for g_out in gen_outputs['G']:
+            index = re.search('(?<=_)\d+', g_out).group()
             generated = []
             for _, ratio in enumerate(np.linspace(0, 1, 10)):
                 z = np.stack([slerp(ratio, r1, r2) for r1, r2 in zip(z_fixed, z_flex)])
@@ -253,6 +286,6 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, a_output, *
 
             all_img_num = np.prod(generated.shape[:2])
             batch_generated = np.reshape(generated, [all_img_num] + list(generated.shape[2:]))
-            save_image(batch_generated, os.path.join(trainer.log_dir, '{}_interp_G{}.png'.format(step, i)), nrow=10)
+            save_image(batch_generated, os.path.join(trainer.log_dir, '{}_interp_G{}.png'.format(step, index)), nrow=10)
 
     return send_outputs
