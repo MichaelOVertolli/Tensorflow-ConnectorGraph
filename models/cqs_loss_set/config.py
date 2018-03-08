@@ -26,37 +26,42 @@ BEGAN_GMSM_CHROM = 'began_gmsm_chrom'
 SCALED_BEGAN_GMSM = 'scaled_began_gmsm'
 SCALED_BEGAN_GMSM_CHROM = 'scaled_began_gmsm_chrom'
 SCALED_BEGAN_GMSM_HALFCHROM = 'scaled_began_gmsm_halfchrom'
-
+BLWH = 'b+w'
 
 def config(type_):
     config = cb.Config()
 
-    if type_ == BEGAN:
-        config.l1weight = 1.0
-        config.gmsweight = 0.0
-        config.chromweight = 0.0
-    elif type_ == BEGAN_GMSM:
-        config.l1weight = 1.0
-        config.gmsweight = 1.0
-        config.chromweight = 0.0
-    elif type_ == BEGAN_GMSM_CHROM:
-        config.l1weight = 1.0
-        config.gmsweight = 1.0
-        config.chromweight = 1.0
-    elif type_ == SCALED_BEGAN_GMSM:
-        config.l1weight = 2.0
-        config.gmsweight = 1.0
-        config.chromweight = 0.0
-    elif type_ == SCALED_BEGAN_GMSM_CHROM:
-        config.l1weight = 2.0
-        config.gmsweight = 1.0
-        config.chromweight = 1.0
-    elif type_ == SCALED_BEGAN_GMSM_HALFCHROM:
+    if SCALED_BEGAN_GMSM_HALFCHROM in type_:
         config.l1weight = 2.0
         config.gmsweight = 1.0
         config.chromweight = 0.5
+    elif SCALED_BEGAN_GMSM_CHROM in type_:
+        config.l1weight = 2.0
+        config.gmsweight = 1.0
+        config.chromweight = 1.0
+    elif SCALED_BEGAN_GMSM in type_:
+        config.l1weight = 2.0
+        config.gmsweight = 1.0
+        config.chromweight = 0.0
+    elif BEGAN_GMSM_CHROM in type_:
+        config.l1weight = 1.0
+        config.gmsweight = 1.0
+        config.chromweight = 1.0
+    elif BEGAN_GMSM in type_:
+        config.l1weight = 1.0
+        config.gmsweight = 1.0
+        config.chromweight = 0.0
+    elif BEGAN in type_:
+        config.l1weight = 1.0
+        config.gmsweight = 0.0
+        config.chromweight = 0.0
     else:
         raise ConfigError('Invalid config type: {}.'.format(type_))
+
+    if BLWH in type_:
+        config.greyscale = True
+        config.chromweight = 0.0
+        config.gmsweight = 0.0
 
     config.totalweight = config.l1weight + \
                          config.gmsweight + \

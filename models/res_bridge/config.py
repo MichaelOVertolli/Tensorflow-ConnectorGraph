@@ -31,6 +31,7 @@ Z256_SZ64 = 'z256_sz64'
 Z1024_SZ64 = 'z1024_sz64'
 Z2048_SZ64 = 'z2048_sz64'
 Z256_SZ128 = 'z256_sz128'
+H64 = 'h64'
 H128 = 'h128'
 H256 = 'h256'
 H512 = 'h512'
@@ -50,6 +51,7 @@ TANH = 'tanh'
 BLCK = 'block'
 TOIM = 'to_image'
 CLON = 'clone'
+BLWH = 'b+w'
 
 
 def config(type_):
@@ -59,7 +61,10 @@ def config(type_):
         config.net_name = 'B_im'
     else:
         config.net_name = 'B_from_im'
-    config.output_num = 3 #channels
+    if BLWH in type_:
+        config.output_num = 1 #channels
+    else:
+        config.output_num = 3 #channels
     config.data_format = 'NCHW'
 
     if Z128_SZ32 in type_:
@@ -85,7 +90,9 @@ def config(type_):
         config.size = 128
     else:
         raise ConfigError('Invalid z_num or size in type: {}.'.format(type_))
-    if H128 in type_:
+    if H64 in type_:
+        config.hidden_num = 64
+    elif H128 in type_:
         config.hidden_num = 128
     elif H256 in type_:
         config.hidden_num = 256

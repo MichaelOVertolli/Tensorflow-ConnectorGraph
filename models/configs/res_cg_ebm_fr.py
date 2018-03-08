@@ -59,6 +59,7 @@ NPIX = 'npixel'
 NBAT = 'nbatch'
 MINI = 'minibatch'
 ALPH = 'alphas'
+VALP = 'valphas'
 
 
 def config(type_):
@@ -173,19 +174,21 @@ def config(type_):
         config.mdl_type = '_'.join([config.mdl_type, NBAT])
     if ALPH in type_:
         config.alphas = True
-        config.mdl_type = '_'.join([config.mdl_type, ALPH])
+        if VALP in type_:
+            config.mdl_type = '_'.join([config.mdl_type, VALP])
+        else:
+            config.mdl_type = '_'.join([config.mdl_type, ALPH])
     else:
         config.alphas = False
 
     config.repeat_num = int(np.log2(config.img_size)) - 1
     config.base_size = 4
     config.g_lr = 8e-5
-    config.d_lr = 1e-5
+    config.d_lr = 8e-5
     config.r_lr = 8e-5
     config.lr_lower_boundary = 1e-5
     config.lambda_k = 0.001
-    config.alpha_update_steps = 40000
-    config.alpha_update_step_size = 5000
+    config.alpha_update_steps = 30000
 
     config.data_format = 'NCHW'
 

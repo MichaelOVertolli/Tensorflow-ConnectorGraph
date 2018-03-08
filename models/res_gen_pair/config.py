@@ -31,11 +31,13 @@ Z256_SZ64 = 'z256_sz64'
 Z1024_SZ64 = 'z1024_sz64'
 Z2048_SZ64 = 'z2048_sz64'
 Z256_SZ128 = 'z256_sz128'
+H64 = 'h64'
 H128 = 'h128'
 H256 = 'h256'
 H512 = 'h512'
 PROJ = 'project'
 ALPH = 'alphas'
+VALP = 'valphas'
 ELU_ = 'elu'
 RELU = 'relu'
 LRLU = 'leaky_relu'
@@ -62,7 +64,7 @@ def config(type_):
         raise ConfigError('Invalid block in type: {}.'.format(type_))
     
     config.net_name = 'G'
-    config.output_num = 3 #channels
+    # config.output_num = 3 #channels
     config.data_format = 'NCHW'
     config.resample = 'up'
 
@@ -89,7 +91,9 @@ def config(type_):
         config.size = 128
     else:
         raise ConfigError('Invalid z_num or size in type: {}.'.format(type_))
-    if H128 in type_:
+    if H64 in type_:
+        config.hidden_num = 64
+    elif H128 in type_:
         config.hidden_num = 128
     elif H256 in type_:
         config.hidden_num = 256
@@ -148,6 +152,10 @@ def config(type_):
         config.alpha = True
     else:
         config.alpha = False
+    if VALP in type_:
+        config.avariant = True
+    else:
+        config.avariant = False
     if MINI in type_:
         config.minibatch = True
     else:

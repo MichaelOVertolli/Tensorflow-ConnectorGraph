@@ -36,7 +36,7 @@ def build_graph(config):
                                normalizer_params=config.normalizer_params,
                                data_format=config.data_format)
         if config.net_name == 'B_im':
-            x = models.slim.conv2d(x, 3, 3, 1, activation_fn=None,
+            x = models.slim.conv2d(x, config.output_num, 3, 1, activation_fn=None,
                                    data_format=config.data_format)
     B_out = tf.identity(x, name='output')
     tf.add_to_collection('inputs', B_in)
@@ -54,7 +54,7 @@ def build_graph(config):
                                     normalizer_params=config.normalizer_params,
                                     data_format=config.data_format)
             if config.net_name == 'B_im':
-                x2 = models.slim.conv2d(x2, 3, 3, 1, activation_fn=None,
+                x2 = models.slim.conv2d(x2, config.output_num, 3, 1, activation_fn=None,
                                         data_format=config.data_format)
         B_out2 = tf.identity(x2, name='output2')
         tf.add_to_collection('inputs', B_in2)

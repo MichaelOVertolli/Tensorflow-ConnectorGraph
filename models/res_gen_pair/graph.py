@@ -37,7 +37,10 @@ def build_graph(config):
     if config.alpha:
         alpha = tf.placeholder(tf.float32, (), name='alpha'+str(config.block))
         tf.add_to_collection('inputs', alpha)
-        alpha_pair = {'residual': alpha, 'shortcut': 1-alpha}
+        if config.avariant:
+            alpha_pair = {'residual': alpha, 'shortcut': 1.0}
+        else:
+            alpha_pair = {'residual': alpha, 'shortcut': 1-alpha}
     else:
         alpha_pair = {'residual': 1.0, 'shortcut': 1.0}
     G_out, G_all_vars = models.ResidualBlock(G_in,

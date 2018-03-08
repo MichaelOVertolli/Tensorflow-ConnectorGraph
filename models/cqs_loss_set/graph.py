@@ -29,7 +29,10 @@ def build_graph(config):
     autoencoded = tf.placeholder(tf.float32, [None, None, None, None],
                                  name='autoencoded_input')
     l1 = tf.reduce_mean(tf.abs(autoencoded - orig))
-    gms, chrom = friqa.prep_and_call_qs(orig, autoencoded)
+    if config.greyscale:
+        gms, chrom = 0., 0. # friqa.prep_and_call_qs_grey(orig, autoencoded)
+    else:
+        gms, chrom = friqa.prep_and_call_qs(orig, autoencoded)
     loss = (config.l1weight*l1 +
             config.gmsweight*gms +
             config.chromweight*chrom) / config.totalweight
