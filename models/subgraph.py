@@ -127,7 +127,7 @@ class SubGraph(object):
                                 name=model_name)
 
 
-    def freeze(self, sess):
+    def freeze(self, sess, new_name=None):
         """Returns a FrozenSubGraph of this SubGraph.
 
         Designed to be called during initialization or during active
@@ -148,7 +148,11 @@ class SubGraph(object):
             self.strip_names(self.output_names))
         #assume this is only ever used to initialize a FrozenSubGraph
         #so we can set the name parameter to 0
-        name = 'frozen_{}_0'.format(self.get_module_name(self.name))
+        try:
+            name = new_name.format(self.get_module_name(self.name)) # use something like 'frozen/{}' for new_name
+        except AttributeError:
+            name = self.name
+
         frozen = FrozenSubGraph(name, self.config_type, frozen_graph_def,
                                 ['/'.join([name, tensor_name])
                                  for tensor_name in self.input_names],
@@ -202,7 +206,7 @@ class BuiltSubGraph(SubGraph):
     get_module_name(model_name)
 
     """
-    def __init__(self, model_name, config_type, session, log_dir=None):
+    def __init__(self, model_name, config_type, session, log_dir=None, tofreeze=False):
         """Initializes a BuiltSubGraph object.
 
         Throws FirstInitialization error if BuiltSubGraph has never been
@@ -220,6 +224,7 @@ class BuiltSubGraph(SubGraph):
         """
         if session.graph.version != 0:
             raise SessionGraphError('The session graph must be empty.')
+        self.tofreeze = tofreeze
         self.log_dir = log_dir
         if self.log_dir is not None:
             with open(os.path.join(self.log_dir, CHKPNT)) as f:
