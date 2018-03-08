@@ -39,7 +39,8 @@ STEP = 'step'
 
 class Trainer(object):
     def __init__(self, model_name, model_type, config, log_folder=None,
-                 data_name='CelebA', run_type='train', c_graph=None, save=True):
+                 data_name='CelebA', run_type='train', c_graph=None, save=True,
+                 greyscale=False):
         self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
         if log_folder is None:
@@ -51,6 +52,7 @@ class Trainer(object):
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
         self.data_dir = os.path.join(DATA_DIR, data_name)
+        self.greyscale = greyscale
 
         self.max_step = config.max_step
         self.start_step = config.start_step
@@ -83,7 +85,8 @@ class Trainer(object):
                                           self.batch_size,
                                           self.img_size,
                                           self.data_format,
-                                          self.run_type)
+                                          self.run_type,
+                                          self.greyscale)
             if save:
                 self.saver = tf.train.Saver()
             else:
