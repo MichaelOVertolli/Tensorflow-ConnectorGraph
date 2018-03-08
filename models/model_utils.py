@@ -75,7 +75,8 @@ def slerp(val, low, high):
     return np.sin((1.0-val)*omega) / so * low + np.sin(val*omega) / so * high
 
 
-def init_subgraph(subgraph_name, type_, log_dir=None, convert_from=None, log_dir_from=None):
+def init_subgraph(subgraph_name, type_, log_dir=None, convert_from=None,
+                  log_dir_from=None, frozen=None):
     if convert_from is not None:
         with tf.Session(graph=tf.Graph()) as sess:
             subgraph = BuiltSubGraph(convert_from, type_, sess, log_dir_from)
@@ -83,9 +84,13 @@ def init_subgraph(subgraph_name, type_, log_dir=None, convert_from=None, log_dir
     try:
         with tf.Session(graph=tf.Graph()) as sess:
             subgraph = BuiltSubGraph(subgraph_name, type_, sess, log_dir)
+            if frozen is not None:
+                subgraph = subgraph.freeze(sess)
     except FirstInitialization:
         with tf.Session(graph=tf.Graph()) as sess:
             subgraph = BuiltSubGraph(subgraph_name, type_, sess, log_dir)
+            if frozen is not None:
+                subgraph = subgraph.freeze(sess)
     return subgraph
 
 
