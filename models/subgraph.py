@@ -166,6 +166,17 @@ class SubGraph(object):
         return [name.split(':')[0] for name in names]
 
 
+    def close(self):
+        del self.name
+        del self.config_type
+        del self.graph
+        del self.inputs
+        del self.outputs
+        del self.input_names
+        del self.output_names
+        del self.collections
+
+
 CONFIG_FILE = 'models.{}.config'
 GRAPH_FILE = 'models.{}.graph'
 GRAPH = 'graph_{}'
@@ -291,15 +302,18 @@ class BuiltSubGraph(SubGraph):
                        to the respective tensor values.
 
         """
+
         self.saver = tf.train.import_meta_graph(os.path.join(self.path,
                                                              META.format(config_type)),
                                                 clear_devices=True,
                                                 import_scope=model_name,
                                                 input_map=input_map)
+        col = sess.graph.get_collection('variables')
+        
         if self.log_dir is None:
             self.saver.restore(sess, os.path.join(self.path, GRAPH.format(config_type)))
         else:
-            self.saver = tf.train.Saver(sess.graph.get_collection('variables'))
+            self.saver = tf.train.Saver(col)
             self.saver.restore(sess, self.log_dir)
 
 
@@ -317,6 +331,14 @@ class BuiltSubGraph(SubGraph):
         sess.run(tf.variables_initializer(variables))
         saver = tf.train.Saver(variables)
         saver.save(sess, os.path.join(log_dir, model_name))
+
+
+    def close(self):
+        super(BuiltSubGraph, self).close()
+        del self.saver
+        del self.path
+        del self.tofreeze
+        del self.log_dir
 
 
 class FrozenSubGraph(SubGraph):
@@ -344,3 +366,11 @@ class FrozenSubGraph(SubGraph):
 
     def rename(self, new_name, tensor_name):
         return '/'.join([new_name]+tensor_name.split('/')[1:])
+
+
+    def close(self):
+        super(FrozenSubGraph, self).close()
+        del self.frozen_graph_def
+        del self.input_names
+        del self.output_names
+        del self.config

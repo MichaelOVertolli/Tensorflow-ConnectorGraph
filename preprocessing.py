@@ -15,11 +15,13 @@
 #along with this program.  If not, see http://www.gnu.org/licenses/
 ###############################################################################
 
+from glob import glob
+import json
 from nltk.corpus import wordnet as wn
 import numpy as np
 import os
 from PIL import Image
-from random import randint
+from random import randint, shuffle
 import tensorflow as tf
 import xml.etree.ElementTree as ET
 
@@ -178,3 +180,73 @@ def mnist_to_imgs(new_dir, base_size=32):
         im = Image.fromarray(arr*255, 'I').convert('RGB')
         o_im = im.resize([base_size, base_size], Image.NEAREST)
         o_im.save(os.path.join(new_dir, '{:05}.jpg'.format(i)))
+
+
+def cifar10_to_imgs(new_dir):
+    files = glob('/home/olias/data/cifar-10-batches-bin/data_batch*.bin')
+    
+    if not os.path.exists(new_dir):
+        os.makedirs(new_dir)
+
+    label_bytes = 1
+    h, w, c = 32, 32, 3
+    image_bytes = h * w * c
+
+    convert = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+    counts = dict([(s, 0) for s in convert])
+    convert = dict([(i, s) for i, s in enumerate(convert)])
+
+    for f in files:
+        with open(f, 'rb') as stream:
+            label_i = stream.read(label_bytes)
+            while label_i != '':
+                label_i = np.frombuffer(label_i, dtype=np.uint8)[0]
+                label = convert[label_i]
+                index = counts[label]
+                counts[label] += 1
+                img = np.frombuffer(stream.read(image_bytes), dtype=np.int8)
+                img = np.transpose(np.reshape(img, [c, w, h]), [1, 2, 0]).astype(np.uint8)
+                img = Image.fromarray(img)
+                img.save(os.path.join(new_dir, '{}_{}.jpg'.format(label, index)))
+                label_i = stream.read(label_bytes)
+
+
+def _bytes_feature(value):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+
+def _int64_feature(value):
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+
+def to_tfrecord(fname, new_dir, img_dir, shape, shards=25): # assumes shape is [h, w, c]
+    if not os.path.exists(new_dir):
+        os.makedirs(new_dir)
+    with open(os.path.join(new_dir, 'img_shape.json'), 'w') as f:
+        f.write(json.dumps(shape))
+    imgs = glob(os.path.join(img_dir, '*.jpg'))
+    shuffle(imgs)
+    nimgs_pershard = len(imgs) / shards 
+    imgs = imgs[:nimgs_pershard*shards] # cuts off remainder < num shards
+    print '{} images kept after filtering.'.format(len(imgs))
+
+    shardstart_i = 0
+    shard_i = 0
+    writer = tf.python_io.TFRecordWriter(os.path.join(new_dir, fname+'_{:02}.tfrecords'.format(shard_i)))
+    for i, img in enumerate(imgs):
+        if (i - shardstart_i) == nimgs_pershard:
+            writer.close()
+            shardstart_i = i
+            shard_i += 1
+            writer = tf.python_io.TFRecordWriter(os.path.join(new_dir, fname+'_{:02}.tfrecords'.format(shard_i)))
+        
+        with open(img, 'rb') as f:
+            im_raw = f.read()
+
+        example = tf.train.Example(features=tf.train.Features(feature={
+            'index': _int64_feature(i),
+            'image_raw': _bytes_feature(im_raw)}))
+
+        writer.write(example.SerializeToString())
+        
+    writer.close()

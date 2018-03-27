@@ -291,6 +291,19 @@ class ConnectorGraph(object):
         raise NotImplementedError('send_outputs must be overridden in ConnectorGraph construction.')
 
 
+    def set_block_index(self, block_index):
+        self.block_index = block_index
+
+
+    def set_init_params(self, saver, log_dir):
+        self.init_params = [saver, log_dir]
+
+
+    def initialize(self, sess):
+        saver, log_dir = self.init_params
+        saver.restore(sess, log_dir)
+
+
     def attach_func(self, func):
         if callable(func):
             if func.__name__ == 'get_feed_dict':
@@ -323,11 +336,41 @@ class ConnectorGraph(object):
         if self.savers is None:
             raise NoSaversError('There are no savers in this Connectorgraph')
         else:
-            for subgraph, saver in self.savers.items():
+            for subgraph, saver_def in self.savers.items():
                 path = os.path.join(logdir, subgraph)
                 if not os.path.isdir(path):
                     os.makedirs(path)
-                saver.save(sess, os.path.join(path, subgraph), step)
+                saver = tf.train.Saver(saver_def=saver_def)
+                saver.save(sess, os.path.join(path, subgraph), None)
+
+
+    def close(self):
+        del self._MAX_GRAPH_STEPS
+        for sub in self.subgraphs.values():
+            sub.close()
+        self.subgraphs.clear()
+        del self.subgraphs
+        self.input_maps.clear()
+        del self.input_maps
+        for con in self.connections.values():
+            con.close()
+        self.connections.clear()
+        del self.connections
+        self.savers.clear()
+        del self.savers
+        del self.graph
+        del self.config
+        try:
+            del self.get_feed_dict
+        except AttributeError:
+            pass
+        try:
+            del self.send_outputs
+        except AttributeError:
+            pass
+        del self.init_params[:]
+        del self.init_params
+        del self.block_index
 
     
 class Connection(object):
@@ -347,3 +390,10 @@ class Connection(object):
 
     def __str__(self):
         return ', '.join([self.from_graph, self.to_graph, self.from_tensor, self.to_tensor])
+
+
+    def close(self):
+        del self.from_graph
+        del self.to_graph
+        del self.from_tensor
+        del self.to_tensor

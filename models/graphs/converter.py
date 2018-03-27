@@ -116,6 +116,7 @@ def convert(graph, config, load_map={}):
     inputs = get_nodes(graph, 'inputs')
     outputs = get_nodes(graph, 'outputs')
     conngraph.block_index = graph.graph['block_index']
+    
     # img_pairs = get_nodes(graph, 'img')
     # img_pairs = [(tensor.split('/')[0], tensor) for tensor in img_pairs]
     # loss_sets = get_sets(graph, 'loss')

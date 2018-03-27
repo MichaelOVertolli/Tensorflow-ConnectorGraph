@@ -181,6 +181,7 @@ def build(config):
                     'in': INPT,
                     'out': OUTN,
                 },
+                'rev_type': 'res_rev',
             },
             'res_rev': {
                 'new_subgraph': {
@@ -304,6 +305,7 @@ def build(config):
         (BRF1, {
             'paired': BRR1}),
     ])
+
     
     # Remaining inner SubGraphs
     # None

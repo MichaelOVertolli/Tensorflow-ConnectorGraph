@@ -16,6 +16,9 @@
 ###############################################################################
 
 from copy import deepcopy
+from models.errors import InvalidBoolMaskError
+import json
+from netgenrunner import NetGenRunner
 import networkx as nx
 from networkx.algorithms.dag import ancestors, descendants, topological_sort
 from networkx.exception import NetworkXError
@@ -38,39 +41,60 @@ LOGS_DIR = './logs/'
 BLCK = 'block'
 DIR = 'dir'
 DATA = 'data'
+FETCH = 'fetch_size'
+RESIZE = 'resize'
+FILTER = 'filter_value'
 VARIABLES = '/variables'
 
 
 
 class NetGen(object):
     def __init__(self, model_name, model_type, base_dataset, train_program,
-                 timestamp=None, log_folder=None, branching=True, linked={}):
-        if timestamp is None:
-            self.timestamp = get_time()
-        else:
-            self.timestamp = timestamp
-        if log_folder is None:
-            netgen = 'NETGEN'
-            if branching:
-                netgen += '_branching'
-            log_folder = '_'.join([netgen, base_dataset, model_name, model_type, self.timestamp])
-        self.log_dir = os.path.join(LOGS_DIR, log_folder)
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
-            for program in train_program:
-                os.makedirs(os.path.join(self.log_dir, program[DIR]))
-        self.linked = linked
-        self.branching = branching
+                 bool_mask=False, timestamp=None, log_folder=None, branching=True, linked={}):
 
+        self.model_name = model_name
+        self.model_type = model_type
+        
         config = import_module(CONFIG_FILE+model_name)
         graph = import_module(GRAPH_FILE+model_name)
         self.t_ops = import_module(TRAINOPS_FILE+model_name)
 
         self.config = config.config(model_type)
         self.G = graph.build(self.config)
+
+        if 'frozen' in self.G.graph:
+            self.frozen = True
+        else:
+            self.frozen = False
         
-        self.model_name = model_name
-        self.model_type = model_type
+        if timestamp is None:
+            self.timestamp = get_time()
+        else:
+            self.timestamp = timestamp
+        if log_folder is None:
+            netgen = 'NETGEN'
+            if self.frozen:
+                netgen += '_frozen'
+            log_folder = '_'.join([netgen, model_name, model_type, self.timestamp])
+        if bool_mask:
+            if not branching:
+                raise InvalidBoolMaskError('bool_mask is only valid when NetGen is branching.')
+            self.bool_masks = {}
+        else:
+            self.bool_masks = None
+        if branching:
+            self.log_dir = os.path.join(LOGS_DIR, base_dataset, 'branching', log_folder)
+        else:
+            self.log_dir = os.path.join(LOGS_DIR, base_dataset, log_folder)
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+            for program in train_program:
+                os.makedirs(os.path.join(self.log_dir, program[DIR]))
+        with open(os.path.join(self.log_dir, 'train_program.txt'), 'w') as f:
+            f.write(json.dumps(train_program))
+        self.linked = linked
+        self.branching = branching
+        
         self.train_program = train_program
         self.t_config = trainer_config.config()
         self.t_config.max_step = self.config.alpha_update_steps*2
@@ -82,28 +106,39 @@ class NetGen(object):
         block_index = base_block
         for program in self.train_program:
             cur_log_dir = os.path.join(self.log_dir, program[DIR])
+            if 'glr' in program:
+                self.config.g_lr = program['glr']
+            if 'dlr' in program:
+                self.config.d_lr = program['dlr']
+            if 'rlr' in program:
+                self.config.r_lr = program['rlr']
             if block_index == base_block:
                 load_map = {}
+                nx.drawing.nx_agraph.write_dot(
+                        self.G, os.path.join(
+                            self.log_dir, 'test_full_{}.dot'.format(program[DIR])))
                 if self.branching:
                     losses = [sub for sub in self.G.nodes if 'loss' in sub] # don't love this
                     Gpart = self.get_partial_graph(self.G.graph['froot'], self.G.graph['rroot'], losses)
                     nx.drawing.nx_agraph.write_dot(
-                        self.G, os.path.join(
-                            self.log_dir, 'test_full_{}.dot'.format(program[DIR])))
-                    nx.drawing.nx_agraph.write_dot(
                         Gpart, os.path.join(
                             self.log_dir, 'test_partial_{}.dot'.format(program[DIR])))
-                    self.run_training(Gpart, cur_log_dir, program[DATA], load_map, block_index)
+                    part_pickle_path = os.path.join(self.log_dir, 'partial_{}.gpickle'.format(program[DIR]))
+                    nx.write_gpickle(Gpart, part_pickle_path)
+                    self.run_training(Gpart, cur_log_dir, program, load_map, block_index)
+                    if self.bool_masks is not None:
+                        self.subset_data(Gpart, program, cur_log_dir, part_pickle_path)
                     del Gpart
                 else:
-                    self.run_training(self.G, cur_log_dir, program[DATA], load_map, block_index)
+                    self.run_training(self.G, cur_log_dir, program, load_map, block_index)
             else:
-                # if block_index == last_index:
-                #     self.t_config.max_step = int(self.t_config.max_step*1.5)
+                if block_index == last_index:
+                    self.t_config.max_step = int(self.t_config.max_step*2.0)
                 self.add_subgraphs(block_index)
                 if self.branching:
                     branches = []
                     prev_log_dir = os.path.join(self.log_dir, self.train_program[block_index-2][DIR])
+                    alpha = self.G.graph['alpha_tensor'].split('/')[0]
                     for subgraph in self.G.nodes:
                         # if you're adding more than one branch sub_index needs to be scaled
                         fr_pair = []
@@ -129,28 +164,42 @@ class NetGen(object):
                         rev = self.G.graph['branch_types'][branch_type]['new_subgraph']['rev']
                         if rev:
                             ds = topological_sort(nx.subgraph(self.G, descendants(self.G, subgraph)))
-                            base_train_set = [subgraph]
+                            base_train_set = []
                             for d in ds:
                                 if branch_type in d:
                                     base_train_set.append(d)
                                 else:
                                     break
-                            new_sub = next(self.G.predecessors(subgraph)) # subgraph added by add_subgraphs
-                            self.G.add_nodes_from([
-                                (fsubgraph, {
-                                    'rev_pair': [subgraph, branch_type], # adds reverse details to matching forward_subgraph
-                                })])
-                            base_bridge = next(self.G.predecessors(new_sub))
+                            new_rsub = next(s for s in self.G.predecessors(subgraph) if alpha not in s) # need to ignore alphas
+                            # new_fsub = next(self.G.successors(fsubgraph)) # forward subgraph added by add_subgraphs
+                            # self.G.add_nodes_from([
+                            #     (new_fsub, {
+                            #         'rev_pair': [new_rsub, branch_type], # adds reverse details to matching forward_subgraph
+                            #     })])
+                            base_bridge = next(s for s in self.G.predecessors(new_rsub) if alpha not in s) # for loading in linked_subs
                             losses = [s for s in self.G.successors(self.G.nodes[base_bridge]['paired'])
                                       if strip_index('loss') in s] # will output regular and reverse losses
                         else:
                             base_train_set = list(ancestors(self.G, subgraph))
                             new_sub = next(self.G.successors(subgraph)) # subgraph added by add_subgraphs
-                            self.G.add_nodes_from([
-                                (new_sub, {
-                                    'branching': branch_type,
-                                    'rev_pair': None, # will be assigned when the reverse subgraph is added
-                                })])
+                            fbridge = next(self.G.successors(new_sub))
+                            if self.G.graph['reversible']:
+                                new_rsub = next(self.G.successors(self.G.nodes[fbridge]['paired']))
+                                rbranch_type = self.G.graph['branch_types'][branch_type]['rev_type']
+                                self.G.add_nodes_from([
+                                    (new_sub, {
+                                        'branching': branch_type,
+                                        'rev_pair': [new_rsub, rbranch_type],
+                                    })])
+                            else:
+                                self.G.add_nodes_from([
+                                    (new_sub, {
+                                        'branching': branch_type,
+                                        'rev_pair': None,
+                                    })])
+                            print
+                            print new_sub, self.G.nodes[new_sub]
+                            print
                             base_bridge = next(self.G.successors(new_sub))
                             losses = [s for s in self.G.successors(base_bridge) if 'loss' in s] # will output regular and reverse losses
                         # base_bridge = next(sub for sub in base_train_set if bridge_name in sub)
@@ -160,7 +209,7 @@ class NetGen(object):
                                        self.G.graph['loss_tensors']['U'][1]])
                         for i in range(self.G.graph['breadth_count'] - 1):
                             nlosses = self.add_branch(branch_type, block_index, subgraph, fsubgraph,
-                                                    base_bridge, base_train_set, i)
+                                                      base_bridge, base_train_set, i)
                             losses.extend(nlosses)
                         nx.drawing.nx_agraph.write_dot(
                             self.G, os.path.join(
@@ -168,10 +217,16 @@ class NetGen(object):
                         if self.G.graph['reversible']:
                             if fsubgraph is not None:
                                 Gpart = self.get_partial_graph(fsubgraph, subgraph, losses)
+                                prev_fsubgraph = next(s for s in Gpart.predecessors(fsubgraph) if alpha not in s) 
+                                branched_prev_log_dir = os.path.join(prev_log_dir, prev_fsubgraph)
+                                branched_cur_log_dir = os.path.join(cur_log_dir, fsubgraph)
                             else:
                                 continue
                         else:
                             Gpart = self.get_partial_graph(subgraph, None, losses)
+                            prev_subgraph = next(s for s in Gpart.predecessors(subgraph) if alpha not in s) 
+                            branched_prev_log_dir = os.path.join(prev_log_dir, prev_subgraph)
+                            branched_cur_log_dir = os.path.join(cur_log_dir, subgraph)
                         nx.drawing.nx_agraph.write_dot(
                             Gpart, os.path.join(
                                 self.log_dir, 'test_partial_{}_{}.dot'.format(program[DIR], subgraph)))
@@ -179,9 +234,25 @@ class NetGen(object):
                         sorted(edges)
                         for e in edges:
                             print e
-                        load_map = self.build_load_map(prev_log_dir, cur_log_dir)
-                        print load_map
-                        self.run_training(Gpart, cur_log_dir, program[DATA], load_map, block_index)
+                        if block_index > (base_block + 1):
+                            load_map = self.build_load_map(branched_prev_log_dir, None)
+                        else:
+                            load_map = self.build_load_map(prev_log_dir, None)
+                        # for key in load_map:
+                        #     print key, load_map[key]
+                        part_pickle_path = os.path.join(self.log_dir, 'partial_{}_{}.gpickle'.format(program[DIR], subgraph))
+                        nx.write_gpickle(Gpart, part_pickle_path)
+
+                        try:
+                            bool_mask = self.bool_masks[fsubgraph]
+                        except KeyError:
+                            bool_mask = self.bool_masks[subgraph]
+                        except TypeError:
+                            bool_mask = None
+                        self.run_training(Gpart, branched_cur_log_dir, program, load_map, block_index, bool_mask)
+                        if bool_mask is not None:
+                            self.subset_data(Gpart, program, branched_cur_log_dir, part_pickle_path)
+                            self.save_subset(branched_cur_log_dir, bool_mask)
                         del Gpart
                 else:
                     prev_log_dir = os.path.join(self.log_dir, self.train_program[block_index-1][DIR])
@@ -189,10 +260,38 @@ class NetGen(object):
                     nx.drawing.nx_agraph.write_dot(
                         self.G, os.path.join(
                             self.log_dir, 'test_full_{}.dot'.format(program[DIR])))
-                    self.run_training(self.G, cur_log_dir, program[DATA], load_map, block_index)
+                    self.run_training(self.G, cur_log_dir, program, load_map, block_index)
             block_index += 1
             # after a training step finishes there should be no linked subgraphs
             self.linked = {}
+            try:
+                frozen = self.G.graph['frozen']
+            except KeyError:
+                pass
+            else:
+                for type_ in frozen:
+                    subs = [s for s in self.G.nodes if type_ in s]
+                    for sub in subs:
+                        try:
+                            _ = self.G.nodes[sub]['frozen']
+                        except KeyError:
+                            self.freeze_subgraph(sub, cur_log_dir)
+
+        nx.write_gpickle(self.G, os.path.join(self.log_dir, 'final_graph.gpickle'))
+
+
+    def save_subset(self, branch_dir, bool_mask):
+        bools = np.concatenate(bool_mask)
+        indexes = []
+        for i in range(bools.shape[0]):
+            if bools[i]:
+                indexes.append(i)
+        with open(os.path.join(branch_dir, 'data_subset_indexes.json'), 'w') as f:
+            f.write(json.dumps(indexes))
+        name = branch_dir.split('/')[-1]
+        count = str(np.sum(bool_mask))
+        with open(os.path.join(self.log_dir, 'subset_counts.txt'), 'a') as f:
+            f.write(' '.join([name, count, '\n']))
 
 
     def get_partial_graph(self, fsubgraph, rsubgraph, losses):
@@ -320,9 +419,13 @@ class NetGen(object):
                 (new_split, {'config': ['count2']})])
 
             c_in = partial_graph.edges[predecessrs[0], rsubgraph]['in']
+            
             outp, out2 = graph['branch_types'][strip_index(fsubgraph)]['new_subgraph']['out']
             inpt, inp2 = graph['branch_types'][strip_index(fsubgraph)]['new_subgraph']['in']
 
+            if self.frozen and fsubgraph != self.G.graph['froot']:
+                outp = '/'.join(['', fsubgraph+outp])
+                out2 = '/'.join(['', fsubgraph+out2])
             edges = []
 
             edges.extend([
@@ -333,6 +436,10 @@ class NetGen(object):
             for i, subgraph in enumerate(predecessrs):
                 bridge = next(s for s in partial_graph.predecessors(subgraph) if alpha not in s)
                 paired_subgraph = next(partial_graph.predecessors(partial_graph.nodes[bridge]['paired']))
+
+                # if self.branching and fsubgraph != self.G.graph['froot']:
+                #     inpt = '/'.join([paired_subgraph, inpt])
+                #     inp2 = '/'.join([paired_subgraph, inp2])
                 
                 old_out = partial_graph.edges[subgraph, rsubgraph]['out']
                 new_in = concat['in'].format(i)
@@ -351,6 +458,23 @@ class NetGen(object):
             partial_graph.add_edges_from(edges)
         
         return partial_graph
+
+
+    def subset_data(self, G, program, model_dir, gpickle):
+        print 'Generating data subsets.'
+        runner = NetGenRunner(self.model_name, self.model_type,
+                              model_dir,
+                              [(gpickle, G)], branching=self.branching)
+        runner.prep_sess(G, program[DATA], program[FETCH], program[RESIZE], greyscale=G.graph['greyscale'])
+        losses, subgraphs = runner.run_losses(G, self.config.batch_size)
+        bool_sets = runner.subset_data(losses, program[FILTER])
+        runner.close()
+        del runner
+        print
+        print 'Bool masks: ', subgraphs
+        print
+        for sub, bool_mask in zip(subgraphs, bool_sets):
+            self.bool_masks[sub] = bool_mask
 
 
     def build_load_map(self, prev_log_dir, cur_log_dir=None):
@@ -390,10 +514,10 @@ class NetGen(object):
         return load_map
 
 
-    def convert_cg(self, G, load_map): #TODO need to add handling for branching, specifically reverse gen_pair concats/splits
+    def convert_cg(self, G, load_map, log_folder): 
         conngraph, inputs, outputs = convert(G, self.config, load_map)
 
-        conngraph = self.t_ops.build_train_ops(conngraph, inputs, outputs, **G.graph)
+        conngraph = self.t_ops.build_train_ops(log_folder, conngraph, inputs, outputs, **G.graph)
 
         get_feed_dict = self.t_ops.build_feed_func(**G.graph)
         conngraph.attach_func(get_feed_dict)
@@ -403,38 +527,39 @@ class NetGen(object):
         return conngraph
 
 
-    def run_training(self, G, log_folder, dataset, load_map, block_index):
-        conngraph = self.convert_cg(G, load_map)
-        conngraph.block_index = block_index
+    def run_training(self, G, log_folder, program, load_map, block_index, bool_mask=None):
+        full_log_folder = os.path.join(log_folder, get_time())
+        conngraph = self.convert_cg(G, load_map, full_log_folder)
+        conngraph.set_block_index(block_index)
         trainer = Trainer(self.model_name, self.model_type, self.t_config,
-                          os.path.join(log_folder, get_time()), dataset,
-                          c_graph=conngraph, greyscale=G.graph['greyscale'])
+                          program[DATA], program[FETCH], program[RESIZE],
+                          bool_mask, full_log_folder, conngraph, True, G.graph['greyscale'])
+        # if block_index > 0:
+        #     weights = trainer.sess.graph.get_tensor_by_name('res_gen_pair_08/G/Conv_1/weights:0')
+        #     w = trainer.sess.run(weights)
+        #     print w[0, 0, :, :]
+        #     return w
         step = trainer.train()
+        # if block_index == 0:
+        #     tester = trainer.sess.graph.get_operation_by_name('tester1234')
+        #     weights = trainer.sess.graph.get_tensor_by_name('res_gen_pair_08/G/Conv_1/weights:0')
+        #     tester.run(session=trainer.sess)
+        #     w = trainer.sess.run(weights)
+        #     print w[0, 0, :, :]
         conngraph.save_subgraphs(log_folder, step, trainer.sess)
+        trainer.close()
         del trainer
-        try:
-            frozen = self.G.graph['frozen']
-        except KeyError:
-            pass
-        else:
-            for type_ in frozen:
-                subs = [s for s in self.G.nodes if type_ in s]
-                alpha = self.G.graph['alpha_tensor'].split('/')[0]
-                for sub in subs:
-                    try:
-                        _ = self.G.nodes[sub]['frozen']
-                    except KeyError:
-                        self.freeze_subgraph(sub, alpha, log_folder)
+        del conngraph
 
 
     def split_dataset(self, trainer, dataset):
         feed_dict = trainer.c_graph.get_feed_dict(trainer)
-        v = trainer.sess.run(self.G.graph['loss_tensors']['R'], feed_dict)
+        v = trainer.sess.run(G.graph['loss_tensors']['R'], feed_dict)
 
 
-    def freeze_subgraph(self, subgraph, alpha, log_folder):
+    def freeze_subgraph(self, subgraph, log_folder):
         passed_train_block = False
-        for program in self.train_program:
+        for program in self.train_program: # copy saved subgraph folders
             if passed_train_block:
                 copytree(os.path.join(log_folder, subgraph), os.path.join(self.log_dir, program[DIR], subgraph))
             elif subgraph in os.listdir(os.path.join(self.log_dir, program[DIR])):
@@ -442,9 +567,16 @@ class NetGen(object):
             else:
                 continue
         graph = self.G.graph
-        for key in graph['train_sets']:
-            graph['train_sets'][key] = [s for s in graph['train_sets'][key] if s != subgraph]
-        graph['saver_pairs'] = [p for p in graph['saver_pairs'] if p[0] != subgraph]
+        for key in graph['train_sets']: # remove frozen graphs from training graph sets
+            if self.branching and key != 'D':
+                for loss in graph['train_sets'][key]:
+                    graph['train_sets'][key][loss] = [s for s in graph['train_sets'][key][loss] if s != subgraph]
+            else:
+                graph['train_sets'][key] = [s for s in graph['train_sets'][key] if s != subgraph]
+        if self.branching: # remove frozen graphs from saving graph set
+            del graph['saver_pairs'][subgraph]
+        else:
+            graph['saver_pairs'] = [p for p in graph['saver_pairs'] if p[0] != subgraph]
         if subgraph in graph['gen_input']:
             graph['gen_input'] = '/'.join([subgraph, graph['gen_input']])
         attributes = {'frozen': True}
@@ -471,16 +603,6 @@ class NetGen(object):
         self.G.add_nodes_from([
             (subgraph, attributes),
         ])
-        # print
-        # print
-        # print self.G.graph['train_sets']
-        # print self.G.graph['gen_input']
-        # print self.G.graph['saver_pairs']
-        # print self.G.nodes[subgraph]
-        # print
-        # print
-        # self.G.remove_edge(alpha, subgraph)
-        # self.G = nx.relabel_nodes(self.G, {subgraph: 'frozen/{}'.format(subgraph)})
         for psub in self.G.predecessors(subgraph):
             in_ = self.G.edges[psub, subgraph]['in']
             outpts = self.G.edges[psub, subgraph]['out']
@@ -682,25 +804,28 @@ class NetGen(object):
         train_set = base_train_set + [nsub, nbridge]
         self.add_subgraph(nsub, config, train, alphas, alpha_edge,
                           block_index, nloss, train_set)
-        if rev:
-            self.G.add_nodes_from([
-                (forward_subgraph, {
-                    'rev_pair': [subgraph, branch_type], # adds reverse details to matching forward_subgraph
-                })])
+        if rev:            
             paired = None
-            for sub in self.G.successors(forward_subgraph):
-                bridge_ = next(self.G.successors(sub))
+            for new_fsub in self.G.successors(forward_subgraph):
+                bridge_ = next(self.G.successors(new_fsub))
                 if self.G.nodes[bridge_]['paired'] is None: # if > 2 branches, this will grab the first un-paired bridge
                     paired = bridge_
                     break
             if paired is None:
                 raise TypeError('No valid paired bridge was found.')
             self.G.add_nodes_from([
+                (new_fsub, {
+                    'rev_pair': [nsub, branch_type], # adds reverse details to matching forward_subgraph
+                })])
+            self.G.add_nodes_from([
                 (nbridge, {
                     'paired': paired,}),
                 (paired, {
                     'paired': nbridge,}),
             ])
+            print
+            print new_fsub, self.G.nodes[new_fsub]
+            print
         else:
             self.G.add_nodes_from([
                 (nsub, {
@@ -711,15 +836,31 @@ class NetGen(object):
                 (nbridge, {
                     'paired': None,})]) # will be assigned when the reverse subgraph is added
 
+
+        print
+        print nsub, self.G.nodes[nsub]
+        print 
         # add connections
         if rev:
             prev_subgraph = nbridge
             next_subgraph = subgraph
+            old_in = bridge['in']
+            old_out = new_subgraph['out'] # assumes that all branches are identical to their branch points which is reasonable
+            if self.frozen:
+                try:
+                    old_in = '/'.join(['', subgraph+old_in])
+                except TypeError:
+                    old_in = ['/'.join(['', subgraph+i]) for i in old_in]
         else:
             prev_subgraph = subgraph
             next_subgraph = nbridge
-        old_in = bridge['in']
-        old_out = new_subgraph['out'] # assumes that all branches are identical to their branch points which is reasonable
+            old_in = bridge['in']
+            old_out = new_subgraph['out'] # assumes that all branches are identical to their branch points which is reasonable
+            if self.frozen:
+                try:
+                    old_out = '/'.join(['', subgraph+old_out])
+                except TypeError:
+                    old_out = ['/'.join(['', subgraph+o]) for o in old_out]
         new_in = new_subgraph['in']
         new_out = new_subgraph['out']
         self.add_connection(nsub, prev_subgraph, next_subgraph,
@@ -845,3 +986,41 @@ class NetGen(object):
         nsub = nsub.format(i)
         self.G.graph['counts'][name] += 1
         return nsub
+
+
+    def close(self):
+        del self.model_name
+        del self.model_type
+        
+        del self.t_ops
+
+        del self.config
+        self.G.clear()
+        del self.G
+
+        del self.frozen
+        del self.timestamp
+        del self.log_dir
+
+        try:
+            for k in self.bool_masks:
+                del self.bool_masks[k][:]
+        except TypeError:
+            pass
+        else:
+            self.bool_masks.clear()
+        del self.bool_masks
+
+        for k in self.linked:
+            del self.linked[k][:]
+        self.linked.clear()
+        del self.linked
+        
+        del self.branching
+        
+        for program in self.train_program:
+            program.clear()
+        del self.train_program[:]
+        del self.train_program
+        
+        del self.t_config

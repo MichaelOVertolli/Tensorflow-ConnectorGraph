@@ -184,11 +184,11 @@ def config(type_):
     config.repeat_num = int(np.log2(config.img_size)) - 1
     config.base_size = 4
     config.g_lr = 8e-5
-    config.d_lr = 8e-5
+    config.d_lr = 1e-5
     config.r_lr = 8e-5
     config.lr_lower_boundary = 1e-5
     config.lambda_k = 0.001
-    config.alpha_update_steps = 30000
+    config.alpha_update_steps = 10000
 
     config.data_format = 'NCHW'
 

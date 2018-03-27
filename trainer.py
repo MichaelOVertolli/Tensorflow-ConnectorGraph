@@ -16,9 +16,10 @@
 ###############################################################################
 
 from datetime import datetime
-from data_loader import get_loader
+from data_loader import setup_sharddata
 import os
 from importlib import import_module
+from models.errors import NANError, ModalCollapseError
 import numpy as np
 import tensorflow as tf
 from tqdm import trange
@@ -35,12 +36,16 @@ INTERIM = 'outputs_interim'
 LR = 'outputs_lr'
 SUMMARY = 'summary'
 STEP = 'step'
+REPEAT_INF = -1
+NORM_TRUE = True
+SHUFFLE_TRUE = True
 
 
 class Trainer(object):
-    def __init__(self, model_name, model_type, config, log_folder=None,
-                 data_name='CelebA', run_type='train', c_graph=None, save=True,
-                 greyscale=False):
+    def __init__(self, model_name, model_type, config,
+                 data_name, fetch_size, resize,
+                 bool_mask=None, log_folder=None, c_graph=None,
+                 save=True, greyscale=False):
         self.config = config
         self.path = os.path.join(MODEL_DIR, model_name)
         if log_folder is None:
@@ -53,6 +58,9 @@ class Trainer(object):
             os.makedirs(self.log_dir)
         self.data_dir = os.path.join(DATA_DIR, data_name)
         self.greyscale = greyscale
+        self.fetch_size = fetch_size
+        self.resize = resize
+        self.bool_mask = bool_mask
 
         self.max_step = config.max_step
         self.start_step = config.start_step
@@ -62,7 +70,7 @@ class Trainer(object):
         
         self.data_format = config.data_format
         self.use_gpu = config.use_gpu
-        self.run_type = run_type
+        # self.run_type = run_type
 
         if c_graph is None:
             config = import_module(CONFIG_FILE.format(model_name))
@@ -81,12 +89,23 @@ class Trainer(object):
         self.img_size = self.c_graph.config.img_size
         
         with self.c_graph.graph.as_default():
-            self.data_loader = get_loader(self.data_dir,
-                                          self.batch_size,
-                                          self.img_size,
-                                          self.data_format,
-                                          self.run_type,
-                                          self.greyscale)
+            with tf.device('/cpu:0'):
+                self.data, self.data_loader, self.init = setup_sharddata(self.data_dir,
+                                                                         self.fetch_size,
+                                                                         self.batch_size,
+                                                                         REPEAT_INF,
+                                                                         self.greyscale,
+                                                                         NORM_TRUE,
+                                                                         SHUFFLE_TRUE,
+                                                                         self.bool_mask,
+                                                                         self.resize,
+                                                                         self.data_format)
+            # self.data_loader = get_loader(self.data_dir,
+            #                               self.batch_size,
+            #                               self.img_size,
+            #                               self.data_format,
+            #                               self.run_type,
+            #                               self.greyscale)
             if save:
                 self.saver = tf.train.Saver()
             else:
@@ -94,22 +113,21 @@ class Trainer(object):
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
 
             
-            sv = tf.train.Supervisor(logdir=self.log_dir,
-                                     is_chief=True,
-                                     saver=self.saver,
-                                     summary_op=None,
-                                     summary_writer=self.summary_writer,
-                                     save_model_secs=1200,
-                                     global_step=self.step,
-                                     ready_for_local_init_op=None)
+            self.sv = tf.train.Supervisor(logdir=self.log_dir,
+                                          is_chief=True,
+                                          saver=self.saver,
+                                          local_init_op=self.init,
+                                          summary_op=None,
+                                          summary_writer=self.summary_writer,
+                                          save_model_secs=1200,
+                                          global_step=self.step,
+                                          init_fn=self.c_graph.initialize)
             
             gpu_options = tf.GPUOptions(allow_growth=True)
             sess_config = tf.ConfigProto(allow_soft_placement=True,
                                          gpu_options=gpu_options)
             
-            self.sess = sv.prepare_or_wait_for_session(config=sess_config)
-            
-            
+            self.sess = self.sv.prepare_or_wait_for_session(config=sess_config)
 
     def train(self):
         for step in trange(self.start_step, self.max_step):
@@ -133,9 +151,14 @@ class Trainer(object):
                         continue
                     else:
                         out_str.append('{}: {:.6f}'.format(var, val))
-                print('[{}/{}]\n'.format(step, self.max_step) + '\n'.join(out_str))
+                str_ = '[{}/{}]\n'.format(step, self.max_step) + '\n'.join(out_str)
+                print(str_)
+                if ' nan' in str_:
+                    raise NANError()
+                elif 'k_t:0: 1' in str_:
+                    raise ModalCollapseError()
 
-            if step % (self.log_step * 10) == 0:
+            if (step+1) % (self.log_step * 10) == 0:
                 self.c_graph.send_outputs(self, step)
 
             if step % self.lr_update_step == self.lr_update_step - 1:
@@ -148,6 +171,61 @@ class Trainer(object):
         if self.data_format == 'NCHW':
             x = x.transpose([0, 2, 3, 1])
         return x
+
+
+    def close_sess(self):
+        self.sv.stop()
+        self.sv.wait_for_stop()
+        self.sess.close()
+
+
+    def close(self):
+        self.close_sess()
+        
+        self.config = None # handled by netgen
+        self.bool_mask = None # handled by netgen
+        
+        del self.path
+        del self.log_dir
+        del self.data_dir
+        del self.greyscale
+        del self.fetch_size
+        del self.resize
+
+        del self.max_step
+        del self.start_step
+        del self.save_step
+        del self.log_step
+        del self.lr_update_step
+        
+        del self.data_format
+        del self.use_gpu
+
+        self.c_graph.close()
+        del self.c_graph
+
+        self.output_fdict.clear()
+        del self.output_fdict
+        self.interim_fdict.clear()
+        del self.interim_fdict
+        del self.summary_name
+        del self.step
+
+        self.z_num = None
+        self.batch_size = None
+        self.img_size = None
+        
+        del self.data_loader
+        del self.data
+        del self.init
+
+        del self.saver
+        del self.summary_writer
+
+            
+        del self.sv
+            
+        del self.sess
 
 
 def get_time():

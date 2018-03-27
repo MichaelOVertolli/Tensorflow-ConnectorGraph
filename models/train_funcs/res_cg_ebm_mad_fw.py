@@ -29,7 +29,7 @@ from ..model_utils import *
 import time
 
 
-def build_train_ops(conngraph, inputs, outputs,
+def build_train_ops(log_dir, conngraph, inputs, outputs,
                     train_scope, loss_tensors, train_sets,
                     img_pairs, saver_pairs, alpha_tensor, **keys):
     config = conngraph.config
@@ -39,15 +39,15 @@ def build_train_ops(conngraph, inputs, outputs,
         variables = branching_build_variables(conngraph, sess, train_sets)
         step = tf.Variable(0, dtype=tf.int32, name='step', trainable=False)
         
-        with tf.variable_scope(train_scope):
+        with tf.variable_scope(train_scope) as vs:
 
             k_t = tf.Variable(0., trainable=False, name='k_t')
 
             g_lr = tf.Variable(config.g_lr, name='g_lr')
             d_lr = tf.Variable(config.d_lr, name='d_lr')
 
-            g_lr_update = tf.assign(g_lr, tf.maximum(g_lr * 0.5, config.lr_lower_boundary), name='g_lr_update')
-            d_lr_update = tf.assign(d_lr, tf.maximum(d_lr * 0.5, config.lr_lower_boundary), name='d_lr_update')
+            g_lr_update = tf.assign(g_lr, g_lr, name='g_lr_update')
+            d_lr_update = tf.assign(d_lr, d_lr, name='d_lr_update')
 
             g_losses = []
             g_optims = []
@@ -117,7 +117,8 @@ def build_train_ops(conngraph, inputs, outputs,
 
             savers = {}
             for subgraph, variables in saver_pairs:
-                savers[subgraph] = tf.train.Saver(sess.graph.get_collection(variables))
+                saver = tf.train.Saver(sess.graph.get_collection(variables))
+                savers[subgraph] = saver.as_saver_def()
 
             conngraph.add_subgraph_savers(savers)
 
@@ -134,6 +135,18 @@ def build_train_ops(conngraph, inputs, outputs,
         tf.add_to_collection('outputs_lr', g_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
+
+        sess.run(step.initializer)
+        sess.run(tf.variables_initializer(tf.contrib.framework.get_variables(vs)))
+
+        full_saver = tf.train.Saver()
+        saver_dir = os.path.join(log_dir, 'temp')
+        if not os.path.exists(saver_dir):
+            os.makedirs(saver_dir)
+        saver_dir = os.path.join(saver_dir,'temp')
+        conngraph.set_init_params(full_saver, saver_dir)
+        
+        full_saver.save(sess, saver_dir)
 
     return conngraph
 

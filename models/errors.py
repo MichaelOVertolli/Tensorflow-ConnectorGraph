@@ -81,3 +81,23 @@ class InvalidSubGraphError(SubGraphError):
 
 class TessellaterError(Error):
     pass
+
+
+class TrainingError(Error):
+    pass
+
+
+class ModalCollapseError(TrainingError):
+    pass
+
+
+class NANError(TrainingError):
+    pass
+
+
+class NetGenError(Error):
+    pass
+
+
+class InvalidBoolMaskError(NetGenError):
+    pass

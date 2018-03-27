@@ -29,7 +29,7 @@ import re
 import time
 
 
-def build_train_ops(conngraph, inputs, outputs,
+def build_train_ops(log_dir, conngraph, inputs, outputs,
                     train_scope, loss_tensors, train_sets,
                     img_pairs, saver_pairs, alpha_tensor, **keys):
     config = conngraph.config
@@ -39,7 +39,7 @@ def build_train_ops(conngraph, inputs, outputs,
         variables = branching_build_variables(conngraph, sess, train_sets) # build_variables needs to be adjusted        
         step = tf.Variable(0, dtype=tf.int32, name='step', trainable=False)
         
-        with tf.variable_scope(train_scope):
+        with tf.variable_scope(train_scope) as vs:
 
             k_t = tf.Variable(0., trainable=False, name='k_t')
 
@@ -136,7 +136,8 @@ def build_train_ops(conngraph, inputs, outputs,
 
             savers = {}
             for subgraph, variables in saver_pairs:
-                savers[subgraph] = tf.train.Saver(sess.graph.get_collection(variables))
+                saver = tf.train.Saver(sess.graph.get_collection(variables))
+                savers[subgraph] = saver.as_saver_def()
 
             conngraph.add_subgraph_savers(savers)
 
@@ -157,6 +158,18 @@ def build_train_ops(conngraph, inputs, outputs,
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
 
+        sess.run(step.initializer)
+        sess.run(tf.variables_initializer(tf.contrib.framework.get_variables(vs)))
+
+        full_saver = tf.train.Saver()
+        saver_dir = os.path.join(log_dir, 'temp')
+        if not os.path.exists(saver_dir):
+            os.makedirs(saver_dir)
+        saver_dir = os.path.join(saver_dir,'temp')
+        conngraph.set_init_params(full_saver, saver_dir)
+        
+        full_saver.save(sess, saver_dir)
+
     return conngraph
 
 
@@ -175,7 +188,6 @@ def build_feed_func(gen_tensor, gen_input, rev_inputs, data_inputs, alpha_tensor
         
         x = trainer.data_loader
         x = trainer.sess.run(x)
-        x = norm_img(x) #running numpy version so don't have to modify graph
         for inpt in data_inputs:
             feeds.append((inpt, x))
 
@@ -214,8 +226,7 @@ def build_send_func(gen_input, rev_inputs, data_inputs, gen_outputs, gen_tensor,
         if not hasattr(self, 'z_fixed'):
             self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
             self.x_fixed = trainer.get_image_from_loader()
-            save_image(self.x_fixed, os.path.join(trainer.log_dir, 'x_fixed.png'))
-            self.x_fixed = norm_img(self.x_fixed)
+            save_image(denorm_img_numpy(self.x_fixed, trainer.data_format), os.path.join(trainer.log_dir, 'x_fixed.png'))
 
         alphas = trainer.c_graph.config.alphas
 
