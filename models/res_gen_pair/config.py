@@ -166,7 +166,10 @@ def config(type_):
         config.base = False
 
     sizes = [2**i for i in range(2, int(np.log2(config.size)))]
-    config.size = sizes[config.block]
+    try:
+        config.size = sizes[config.block]
+    except IndexError:
+        raise IndexError('Likely means that the number of blocks do not match the config sz value.')
     config.name = type_
 
     return config

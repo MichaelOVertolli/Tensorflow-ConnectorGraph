@@ -280,7 +280,7 @@ def chrominance(ri, rq, di, dq, c):
     return Ik*Qk
 
 
-def qs(ref, dist):
+def qs(ref, dist, gaxis=None, caxis=None):
     c = tf.constant(0.0026)
     ry, ri, rq = toyiq(ref)
     dy, di, dq = toyiq(dist)
@@ -292,7 +292,7 @@ def qs(ref, dist):
 
     #out = tf.reduce_mean(gms_ + chrome)
 
-    return tf.reduce_mean(gms_), tf.reduce_mean(chrome)#tf.Print(out, [gms_, chrome, out])
+    return tf.reduce_mean(gms_, axis=gaxis), tf.reduce_mean(chrome, axis=caxis)#tf.Print(out, [gms_, chrome, out])
 
 
 def qs_yiq(ref, dist):
@@ -310,6 +310,10 @@ def prep_and_call_qs(ref, dist):
     gms_, chrome = qs(((ref+1)/2)*255., ((dist+1)/2)*255.)
     #out = tf.Print(out, [out])
     return 1.-gms_, 1.-chrome#(2. - out)/2.
+
+
+def prep_and_call_qs_sim(ref, dist):
+    return qs(((ref+1)/2)*255., ((dist+1)/2)*255., gaxis=[1, 2, 3], caxis=[1, 2])
 
 
 def prep_and_call_qs_grey(ref, dist):

@@ -56,7 +56,10 @@ def build_graph(config):
                                        normalizer_fn=config.normalizer_fn,
                                        normalizer_params=config.normalizer_params,
                                        data_format=config.data_format)
-            R_out = tf.squeeze(R_out, [2, 3])
+            if config.wass: # need to fix this for generator
+                R_out = models.slim.fully_connected(R_out, 1, activation_fn=None)
+            else:
+                R_out = tf.squeeze(R_out, [2, 3])
             
     R_out = tf.identity(R_out, name='output')
     tf.add_to_collection('inputs', R_in)

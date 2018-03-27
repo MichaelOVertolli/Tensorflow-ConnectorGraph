@@ -51,6 +51,7 @@ MINI = 'minibatch'
 TANH = 'tanh'
 BLCK = 'block'
 BASE = 'base'
+WASS = 'wass'
 
 
 def config(type_):
@@ -159,6 +160,10 @@ def config(type_):
         config.base = True
     else:
         config.base = False
+    if WASS in type_:
+        config.wass = True
+    else:
+        config.wass = False
 
     sizes = [2**i for i in range(3, int(np.log2(config.size)+1))]
     config.size = sizes[config.block]
