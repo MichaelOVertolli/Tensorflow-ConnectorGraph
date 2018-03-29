@@ -20,6 +20,7 @@ from data_loader import setup_sharddata
 import os
 from importlib import import_module
 from models.errors import NANError, ModalCollapseError
+from models.model_utils import denorm_img_numpy
 import numpy as np
 import tensorflow as tf
 from tqdm import trange
@@ -168,8 +169,8 @@ class Trainer(object):
 
     def get_image_from_loader(self):
         x = self.data_loader.eval(session=self.sess)
-        if self.data_format == 'NCHW':
-            x = x.transpose([0, 2, 3, 1])
+        # if self.data_format == 'NCHW':
+        #     x = x.transpose([0, 2, 3, 1])
         return x
 
 

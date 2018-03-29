@@ -181,8 +181,7 @@ def build_send_func(gen_input, rev_input, data_inputs, gen_outputs, a_output, **
         if not hasattr(self, 'z_fixed'):
             self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
             self.x_fixed = trainer.get_image_from_loader()
-            save_image(self.x_fixed, os.path.join(trainer.log_dir, 'x_fixed.png'))
-            self.x_fixed = norm_img(self.x_fixed)
+            save_image(denorm_img_numpy(self.x_fixed, trainer.data_format), os.path.join(trainer.log_dir, 'x_fixed.png'))
 
         #generate
         z_fixed = self.z_fixed

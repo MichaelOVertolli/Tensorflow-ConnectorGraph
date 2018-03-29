@@ -90,20 +90,7 @@ def config(type_):
         config.gamma = 0.7
     else:
         raise ConfigError('Invalid config type {} for gamma.'.format(type_))
-    if SCALED_BEGAN_GMSM_HALFCHROM in type_:
-        config.lss_type = SCALED_BEGAN_GMSM_HALFCHROM
-    elif SCALED_BEGAN_GMSM_CHROM in type_:
-        config.lss_type = SCALED_BEGAN_GMSM_CHROM
-    elif SCALED_BEGAN_GMSM in type_:
-        config.lss_type = SCALED_BEGAN_GMSM
-    elif BEGAN_GMSM_CHROM in type_:
-        config.lss_type = BEGAN_GMSM_CHROM
-    elif BEGAN_GMSM in type_:
-        config.lss_type = BEGAN_GMSM
-    elif BEGAN in type_:
-        config.lss_type = BEGAN
-    else:
-        raise ConfigError('Invalid config type {} for lss_type.'.format(type_))
+
     if Z128_SZ32 in type_:
         config.mdl_type = Z128_SZ32
         config.z_num = 128
@@ -195,6 +182,7 @@ def config(type_):
     else:
         config.alphas = False
 
+    config.lss_type = ''
     config.repeat_num = int(np.log2(config.img_size)) - 1
     config.base_size = 4
     config.lr_lower_boundary = 1e-7

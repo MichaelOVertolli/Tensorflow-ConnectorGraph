@@ -185,7 +185,7 @@ def config(type_):
     config.lr_lower_boundary = 1e-7
     config.lambda_k = 0.001
     config.lambda_u = 1e-4
-    config.alpha_update_steps = 25000
+    config.alpha_update_steps = 10000
 
     config.data_format = 'NCHW'
 

@@ -71,7 +71,7 @@ def build(config):
             'res_bridge': 3,
             'res_rev': 3,
             'res_gen_pair': 6,
-            'cqs_loss_set': 2},
+            'res_loss_set': 2},
         loss_tensors={
             'G': LSSG+OUTP,
             'D': LSSD+OUTP,},

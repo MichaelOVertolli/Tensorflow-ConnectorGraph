@@ -116,9 +116,11 @@ class NetGenRunner(object):
         shape = losses.shape
         outputs = np.zeros(shape) == 1 # boolean init all False
         cnt = int(losses.shape[0] * keep_percent)
-        while np.min(np.sum(outputs, 0)) < cnt:
+        i = 0
+        while i < 1000 and np.min(np.sum(outputs, 0)) < cnt:
             p = np.random.uniform(0, 1, shape)
             outputs = outputs | (p > losses) # > b/c similarity is 1 - loss
+            i += 1
         return np.split(outputs, 2, axis=1)
 
 

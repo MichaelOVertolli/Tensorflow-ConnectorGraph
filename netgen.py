@@ -50,7 +50,8 @@ VARIABLES = '/variables'
 
 class NetGen(object):
     def __init__(self, model_name, model_type, base_dataset, train_program,
-                 bool_mask=False, timestamp=None, log_folder=None, branching=True, linked={}):
+                 bool_mask=False, timestamp=None, log_folder=None, branching=True, skip_first=False,
+                 linked={}):
 
         self.model_name = model_name
         self.model_type = model_type
@@ -94,6 +95,7 @@ class NetGen(object):
             f.write(json.dumps(train_program))
         self.linked = linked
         self.branching = branching
+        self.skip_first = skip_first
         
         self.train_program = train_program
         self.t_config = trainer_config.config()
@@ -104,6 +106,8 @@ class NetGen(object):
         last_index = self.G.graph['last_index']
         base_block = self.G.graph['block_index']
         block_index = base_block
+        if self.skip_first:
+            base_block = -1
         for program in self.train_program:
             cur_log_dir = os.path.join(self.log_dir, program[DIR])
             if 'glr' in program:

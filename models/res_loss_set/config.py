@@ -21,6 +21,7 @@ from ..errors import ConfigError
 
 #Types:
 BLWH = 'b+w'
+MSE_ = 'mse'
 
 def config(type_):
     config = cb.Config()
@@ -29,6 +30,11 @@ def config(type_):
         config.greyscale = True
     else:
         config.greyscale = False
+
+    if MSE_ in type_:
+        config.mse = True
+    else:
+        config.mse = False
 
     config.name = type_
 

@@ -28,12 +28,15 @@ def build_graph(config):
                           name='orig_input')
     autoencoded = tf.placeholder(tf.float32, [None, None, None, None],
                                  name='autoencoded_input')
-    l1 = tf.reduce_mean(tf.abs(autoencoded - orig))
+    if config.mse:
+        norm = tf.reduce_mean((autoencoded - orig)**2)
+    else:
+        norm = tf.reduce_mean(tf.abs(autoencoded - orig))
     if config.greyscale:
         gms, chrom = 0., 0. # friqa.prep_and_call_qs_grey(orig, autoencoded)
     else:
         gms, chrom = friqa.prep_and_call_qs(orig, autoencoded)
-    loss = tf.stack([l1, gms, chrom], name='output')
+    loss = tf.stack([norm, gms, chrom], name='output')
     make_null_variable()
     tf.add_to_collection('inputs', orig)
     tf.add_to_collection('inputs', autoencoded)

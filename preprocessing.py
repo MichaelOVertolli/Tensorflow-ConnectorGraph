@@ -250,3 +250,41 @@ def to_tfrecord(fname, new_dir, img_dir, shape, shards=25): # assumes shape is [
         writer.write(example.SerializeToString())
         
     writer.close()
+
+
+#Param search
+
+def strip_extra_headers(ar):
+    new = []
+    for i in range(ar.shape[0]):
+        if not np.isnan(ar[i][0]):
+            new.append(ar[i])
+    return np.stack(new)
+
+
+def to_distance(ar, start_index, end_index):
+    new = np.copy(ar)
+    temp = new[:, start_index:end_index]
+    new[:, start_index:end_index] = np.ones(temp.shape) - temp
+    return new
+
+
+def nan_to_val(ar, nan_val):
+    new = np.copy(ar)
+    return new
+
+
+def prep_param_csv(fname, start_index, end_index=14, nan_val=-.1, log=True):
+    path, tail = os.path.split(fname)
+    with open(fname, 'r') as f:
+        header = f.readline()
+        ar = np.genfromtxt(f, np.float32, delimiter=',')
+    ar = strip_extra_headers(ar)
+    # ar = to_distance(ar, start_index, end_index)
+    if log:
+        ar = -np.log10(ar+1e-10)
+        if start_index == 3:
+            ar[ar < 0.] = 10**(-ar[ar < 0.])
+            ar[ar > 9.] = 0.
+    ar[np.isnan(ar)] = nan_val
+    np.savetxt(os.path.join(path, 'prepped_'+tail), ar, fmt='%.4f', delimiter=',', header=header[:-1], comments='')

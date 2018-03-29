@@ -59,6 +59,7 @@ DLRN = 'dlr'
 RLRN = 'rlr'
 LGMS = 'gms'
 LCHM = 'chrom'
+GAMA = 'g'
 
 
 def config(type_):
@@ -74,20 +75,17 @@ def config(type_):
         config.lambda_chrom = float(m.group(0))
     else:
         raise ConfigError('Invalid lambda_chrom in type: {}.'.format(type_))
+    m = re.search('(?<={})\d\.\d'.format(GAMA), type_)
+    if m is not None:
+        config.gamma = float(m.group(0))
+    else:
+        raise ConfigError('Invalid gamma in type: {}.'.format(type_))
 
 
     if B_16 in type_:
         config.batch_size = 16
     else:
         raise ConfigError('Invalid config type {} for batch_size.'.format(type_))
-    if G_5 in type_:
-        config.gamma = 0.5
-    elif G_7 in type_:
-        config.gamma = 0.7
-    elif G_9 in type_:
-        config.gamma = 0.9
-    else:
-        raise ConfigError('Invalid config type {} for gamma.'.format(type_))
     if Z128_SZ32 in type_:
         config.mdl_type = Z128_SZ32
         config.z_num = 128
