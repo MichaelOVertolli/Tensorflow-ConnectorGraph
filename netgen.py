@@ -50,8 +50,8 @@ VARIABLES = '/variables'
 
 class NetGen(object):
     def __init__(self, model_name, model_type, base_dataset, train_program,
-                 bool_mask=False, timestamp=None, log_folder=None, branching=True, skip_first=False,
-                 linked={}):
+                 bool_mask=False, timestamp=None, log_folder=None, branching=True, skip_first=False, skip_n=None,
+                 linked={}, base_block_folder=None):
 
         self.model_name = model_name
         self.model_type = model_type
@@ -96,6 +96,11 @@ class NetGen(object):
         self.linked = linked
         self.branching = branching
         self.skip_first = skip_first
+        if skip_n is not None:
+            self.skip_n = skip_n
+        else:
+            self.skip_n = -1
+        self.base_block_folder = base_block_folder
         
         self.train_program = train_program
         self.t_config = trainer_config.config()
@@ -108,7 +113,7 @@ class NetGen(object):
         block_index = base_block
         if self.skip_first:
             base_block = -1
-        for program in self.train_program:
+        for program_i, program in enumerate(self.train_program):
             cur_log_dir = os.path.join(self.log_dir, program[DIR])
             if 'glr' in program:
                 self.config.g_lr = program['glr']
@@ -259,7 +264,10 @@ class NetGen(object):
                             self.save_subset(branched_cur_log_dir, bool_mask)
                         del Gpart
                 else:
-                    prev_log_dir = os.path.join(self.log_dir, self.train_program[block_index-1][DIR])
+                    if self.base_block_folder is not None:
+                        prev_log_dir = os.path.join(self.base_block_folder, self.train_program[block_index-1][DIR])
+                    else:
+                        prev_log_dir = os.path.join(self.log_dir, self.train_program[block_index-1][DIR])
                     load_map = self.build_load_map(prev_log_dir)
                     nx.drawing.nx_agraph.write_dot(
                         self.G, os.path.join(
@@ -532,6 +540,10 @@ class NetGen(object):
 
 
     def run_training(self, G, log_folder, program, load_map, block_index, bool_mask=None):
+        if block_index < self.skip_n:
+            return
+        else:
+            self.base_block_folder = None # allows subsequent growth to generate from normal place
         full_log_folder = os.path.join(log_folder, get_time())
         conngraph = self.convert_cg(G, load_map, full_log_folder)
         conngraph.set_block_index(block_index)
