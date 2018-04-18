@@ -122,6 +122,10 @@ def setup_sharddata(data_dir, fetch_size, batch_size=16, repeat=0,
 
     with open(os.path.join(data_dir, 'img_shape.json'), 'r') as f:
         h, w, c = json.loads(f.read())
+
+    if greyscale:
+        c = 1
+    
     def parse_tf_record(serialized):
         features = tf.parse_single_example(
             serialized,
@@ -182,6 +186,62 @@ def setup_sharddata(data_dir, fetch_size, batch_size=16, repeat=0,
     return data, loader, init
 
 
+def setup_nameddata(fname, fetch_size, batch_size=16,
+                    greyscale=False, norm=False,resize=None, data_format='NCHW'):
+    data = tf.data.TFRecordDataset(fname)
+    data_dir, _ = os.path.split(fname)
+
+    with open(os.path.join(data_dir, 'img_shape.json'), 'r') as f:
+        h, w, c = json.loads(f.read())
+
+    if greyscale:
+        c = 1
+    
+    def parse_tf_record_name(serialized):
+        features = tf.parse_single_example(
+            serialized,
+            features={
+                'image_name': tf.FixedLenFeature([], tf.string),
+            })
+        name = features['image_name']
+        return name
+
+    def parse_tf_record_img(serialized):
+        features = tf.parse_single_example(
+            serialized,
+            features={
+                'image_raw': tf.FixedLenFeature([], tf.string),
+            })
+        img = tf.image.decode_jpeg(features['image_raw'], channels=c)
+        img.set_shape([h, w, c])
+        img = tf.to_float(img)
+        return img
+
+    names = data.map(parse_tf_record_name)
+    imgs = data.map(parse_tf_record_img)
+    
+    names = names.batch(batch_size)
+    imgs = imgs.batch(batch_size)
+
+    if resize is not None:
+        imgs = imgs.map(lambda imgs: tf.image.resize_bicubic(imgs, resize))
+
+    if data_format == 'NCHW':
+        imgs = imgs.map(lambda imgs: tf.transpose(imgs, [0, 3, 1, 2]))
+
+    if norm:
+        imgs = imgs.map(lambda imgs: (imgs/127.5) - 1.0)
+
+    data = Dataset.zip((names, imgs))
+    data = data.prefetch(fetch_size/batch_size)
+
+    itr = Iterator.from_structure(data.output_types, data.output_shapes)
+    name_loader, img_loader = itr.get_next()
+    init = itr.make_initializer(data)
+
+    return data, name_loader, img_loader, init
+
+
 def setup_rdataset(fname, fetch_size, batch_size=16, repeat=0,
                    greyscale=False, norm=False, shuffle=False,
                    bool_mask=None, resize=None, data_format='NCHW'):
@@ -191,6 +251,9 @@ def setup_rdataset(fname, fetch_size, batch_size=16, repeat=0,
         data = data.repeat(repeat)
 
     h, w, c = shape_from_name(fname)
+
+    if greyscale:
+        c = 1
 
     def parse_tf_record(serialized):
         features = tf.parse_single_example(
