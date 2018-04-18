@@ -16,7 +16,7 @@
 ###############################################################################
 
 from copy import deepcopy
-from data_loader import setup_sharddata
+from data_loader import setup_sharddata, setup_nameddata
 import glob
 import networkx as nx
 from networkx.algorithms.dag import ancestors, descendants, topological_sort
@@ -158,7 +158,49 @@ class NetGenRunner(object):
             output = self.sess.run(rev_output, feed_dict)
             outputs.append(output)
         return outputs
-    
+
+
+    def make_feed_dict(self, gen_tensor, gen_input, rev_input, data_inputs, alpha_tensor, **keys):
+        z = np.random.uniform(-1, 1, size=(self.batch_size, self.z_num))
+        img = np.zeros([self.batch_size, self.channels, self.img_size, self.img_size])
+        feeds = [
+            (gen_input, z),
+            (rev_input, img),
+        ]
+        
+        for inpt in data_inputs:
+            feeds.append((inpt, img))
+
+        try:
+            alphas = self.config.alphas
+        except AttributeError:
+            pass
+        else:
+            if alphas:
+                alphas_feed = [[alpha_tensor.format(i), 1.0] for i in range(self.config.repeat_num-1)]
+                feeds.extend(alphas_feed)
+        
+        feed_dict = dict(feeds)
+        return feed_dict
+
+
+    def reverse_data(self, feed_dict, rev_output, rev_latent, rev_input, data_input):
+        alllatents = []
+        allimages = []
+        allnames = []
+        for i in range(1000000):
+            try:
+                names, data = self.sess.run([self.name_loader, self.data_loader])
+            except tf.errors.OutOfRangeError:
+                break
+            feed_dict[rev_input] = data
+            latents, images = self.sess.run([rev_latent, rev_output], feed_dict)
+            allimages.append(images)
+            alllatents.append(latents)
+            allnames.append(names)
+        allnames = dict([(n, i) for i, n in enumerate(np.concatenate(allnames).tolist())])
+        return np.concatenate(alllatents), denorm_img_numpy(np.concatenate(allimages), 'NCHW'), allnames
+
 
     def prep_sess(self, G, data_dir, fetch_size, resize, loop_count=0,
                   bool_mask=None, greyscale=False, data_format='NCHW'):
@@ -192,6 +234,46 @@ class NetGenRunner(object):
                                                                          bool_mask,
                                                                          resize,
                                                                          data_format)
+
+            self.sv = tf.train.Supervisor(logdir=None,
+                                          is_chief=True,
+                                          local_init_op=self.init,
+                                          saver=None,
+                                          summary_writer=None,
+                                          save_model_secs=0,
+                                          global_step=None,
+                                          init_fn=self.c_graph.initialize)
+
+            gpu_options = tf.GPUOptions(allow_growth=True)
+            sess_config = tf.ConfigProto(allow_soft_placement=True,
+                                         gpu_options=gpu_options)
+            
+            self.sess = self.sv.prepare_or_wait_for_session(config=sess_config)
+
+
+    def prep_sess_named(self, G, fname, fetch_size, resize,
+                        greyscale=False, data_format='NCHW'):
+
+        if greyscale:
+            self.channels = 1
+        else:
+            self.channels = 3
+        self.c_graph = self.convert_cg(G)
+        self.z_num = self.c_graph.config.z_num
+        self.batch_size = self.c_graph.config.batch_size
+        self.img_size = self.c_graph.config.img_size
+        self.step = self.c_graph.graph.get_collection(STEP)[0] #should always be a single step variable
+        
+        with self.c_graph.graph.as_default():
+            with tf.device('/cpu:0'):
+                self.data, self.name_loader, self.data_loader, self.init = setup_nameddata(
+                    fname,
+                    fetch_size,
+                    self.batch_size,
+                    greyscale,
+                    NORM_TRUE,
+                    resize,
+                    data_format)
 
             self.sv = tf.train.Supervisor(logdir=None,
                                           is_chief=True,
@@ -326,7 +408,10 @@ class NetGenRunner(object):
         del self.sess
         del self.sv
 
-        del self.num_shards
+        try:
+            del self.num_shards
+        except NameError:
+            pass
 
         del self.init
         del self.data_loader
