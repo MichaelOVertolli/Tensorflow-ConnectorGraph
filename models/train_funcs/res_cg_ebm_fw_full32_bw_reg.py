@@ -165,7 +165,6 @@ def build_feed_func(gen_tensor, gen_input, rev_input, data_inputs, alpha_tensor,
         
         x = trainer.data_loader
         x = trainer.sess.run(x)
-        x = norm_img(x) #running numpy version so don't have to modify graph
         for inpt in data_inputs:
             feeds.append((inpt, x))
 

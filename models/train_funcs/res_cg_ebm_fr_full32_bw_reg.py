@@ -16,7 +16,7 @@
 ###############################################################################
 
 from ..connectorgraph import ConnectorGraph
-from ..errors import FirstInitialization, ModalCollapseError
+from ..errors import FirstInitialization
 from ..graphs.converter import build_variables
 import numpy as np
 import os
@@ -52,6 +52,14 @@ def build_train_ops(log_dir, conngraph, inputs, outputs,
             
             g_loss = g_l1 + g_gms*lm_gms + g_chrom*lm_chrom
             g_loss = tf.identity(g_loss, name='g_loss')
+            
+            r_losses = sess.graph.get_tensor_by_name(loss_tensors['R'])
+            r_l1 = tf.identity(r_losses[0], name='r_l1')
+            r_gms = tf.identity(r_losses[1], name='r_gms')
+            r_chrom = tf.identity(r_losses[2], name='r_chrom')
+
+            r_loss = r_l1 + r_gms*lm_gms + r_chrom*lm_chrom
+            r_loss = tf.identity(r_loss, name='r_loss')
 
             d_losses = sess.graph.get_tensor_by_name(loss_tensors['D'])
             d_l1 = tf.identity(d_losses[0], name='d_l1')
@@ -64,23 +72,27 @@ def build_train_ops(log_dir, conngraph, inputs, outputs,
             d_out = tf.identity(d_out, name='d_loss')
 
             g_lr = tf.Variable(config.g_lr, name='g_lr')
+            r_lr = tf.Variable(config.r_lr, name='r_lr')
             d_lr = tf.Variable(config.d_lr, name='d_lr')
 
             g_lr_update = tf.assign(g_lr, tf.maximum(g_lr * 0.5, config.lr_lower_boundary), name='g_lr_update')
+            r_lr_update = tf.assign(r_lr, tf.maximum(r_lr * 0.5, config.lr_lower_boundary), name='r_lr_update')
             d_lr_update = tf.assign(d_lr, tf.maximum(d_lr * 0.5, config.lr_lower_boundary), name='d_lr_update')
 
             g_optimizer = tf.train.AdamOptimizer(g_lr)
+            r_optimizer = tf.train.AdamOptimizer(r_lr)
             d_optimizer = tf.train.AdamOptimizer(d_lr)
 
             # TODO: add incremental variable training as separate mod
             g_optim = g_optimizer.minimize(g_loss, global_step=step, var_list=variables['G'])
+            r_optim = r_optimizer.minimize(r_loss, var_list=variables['R'])
             d_optim = d_optimizer.minimize(d_out, var_list=variables['D'])
 
             balance = config.gamma * d_loss - g_loss
             measure = d_loss + tf.abs(balance)
             measure = tf.identity(measure, name='measure')
 
-            with tf.control_dependencies([d_optim, g_optim]):
+            with tf.control_dependencies([d_optim, g_optim, r_optim]):
                 k_update = tf.assign(k_t, tf.clip_by_value(k_t + config.lambda_k * balance, 0, 1))
                 k_update = tf.identity(k_update, name='k_update')
 
@@ -99,14 +111,19 @@ def build_train_ops(log_dir, conngraph, inputs, outputs,
                 tf.summary.scalar('loss/g_l1', g_l1),
                 tf.summary.scalar('loss/g_gms', g_gms),
                 tf.summary.scalar('loss/g_chrom', g_chrom),
+                tf.summary.scalar('loss/r_loss', r_loss),
+                tf.summary.scalar('loss/r_l1', r_l1),
+                tf.summary.scalar('loss/r_gms', r_gms),
+                tf.summary.scalar('loss/r_chrom', r_chrom),
                 tf.summary.scalar('loss/d_raw_loss', d_loss),
                 tf.summary.scalar('loss/d_l1', d_l1),
                 tf.summary.scalar('loss/d_gms', d_gms),
                 tf.summary.scalar('loss/d_chrom', d_chrom),
-                tf.summary.scalar('loss/d_loss', d_out),          
+                tf.summary.scalar('loss/d_loss', d_out),
                 tf.summary.scalar('misc/measure', measure),
                 tf.summary.scalar('misc/k_t', k_t),
                 tf.summary.scalar('misc/g_lr', g_lr),
+                tf.summary.scalar('misc/r_lr', r_lr),
                 tf.summary.scalar('misc/d_lr', d_lr),
                 tf.summary.scalar('misc/balance', balance),
             ])
@@ -123,7 +140,9 @@ def build_train_ops(log_dir, conngraph, inputs, outputs,
         tf.add_to_collection('step', step)
         
         sess.graph.clear_collection('outputs')
+        sess.graph.clear_collection('outputs')
         tf.add_to_collection('outputs_interim', g_loss)
+        tf.add_to_collection('outputs_interim', r_loss)
         tf.add_to_collection('outputs_interim', d_loss)
         tf.add_to_collection('outputs_interim', d_out)
         tf.add_to_collection('outputs_interim', k_t)
@@ -131,6 +150,7 @@ def build_train_ops(log_dir, conngraph, inputs, outputs,
         tf.add_to_collection('outputs', k_update)
         tf.add_to_collection('outputs', measure)
         tf.add_to_collection('outputs_lr', g_lr_update)
+        tf.add_to_collection('outputs_lr', r_lr_update)
         tf.add_to_collection('outputs_lr', d_lr_update)
         tf.add_to_collection('summary', summary_op)
 
@@ -167,6 +187,10 @@ def build_feed_func(gen_tensor, gen_input, rev_input, data_inputs, alpha_tensor,
         for inpt in data_inputs:
             feeds.append((inpt, x))
 
+        reverse = [(rev_input, np.zeros([trainer.batch_size, 1, trainer.img_size, trainer.img_size]))]
+        gen_output = trainer.sess.run(gen_tensor, dict(feeds+reverse))
+        feeds.append((rev_input, gen_output))
+        
         feed_dict = dict(feeds)
         return feed_dict
 
@@ -179,17 +203,18 @@ def build_send_func(gen_input, rev_input, data_inputs, gen_outputs, a_output, **
             self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
             self.x_fixed = trainer.get_image_from_loader()
             save_image(denorm_img_numpy(self.x_fixed, trainer.data_format), os.path.join(trainer.log_dir, 'x_fixed.png'))
-            # self.x_fixed = norm_img(self.x_fixed)
+
 
         #generate
         z_fixed = self.z_fixed
         feeds = [(gen_input, z_fixed)]
+        reverse = [(rev_input, np.zeros([trainer.batch_size, 1, trainer.img_size, trainer.img_size]))]
+        gen_output = trainer.sess.run(gen_outputs['G'], dict(feeds+reverse))
+        feeds.append((rev_input, gen_output))
         feeds = dict(feeds)
 
         for name, output in gen_outputs.items():
             x_gen = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(output), feeds)
-            # if np.mean(np.absolute(x_gen[0, :, :, :] - x_gen[15, :, :, :])) < 0.0005:
-            #     raise ModalCollapseError()
             if name == 'G':
                 gen = x_gen
             save_image(denorm_img_numpy(x_gen, trainer.data_format),
@@ -206,7 +231,7 @@ def build_send_func(gen_input, rev_input, data_inputs, gen_outputs, a_output, **
             ]
             for inpt in data_inputs:
                 afeeds.append((inpt, img))
-            afeeds = dict(afeeds)
+            afeeds = dict(afeeds+reverse)
             x = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(a_output),
                                  afeeds)
             save_image(denorm_img_numpy(x, trainer.data_format),
@@ -219,7 +244,7 @@ def build_send_func(gen_input, rev_input, data_inputs, gen_outputs, a_output, **
             z = np.stack([slerp(ratio, r1, r2) for r1, r2 in zip(z_fixed, z_flex)])
             #generate
             feeds = [(gen_input, z)]
-            feeds = dict(feeds)
+            feeds = dict(feeds+reverse)
             z_decode = trainer.sess.run(trainer.sess.graph.get_tensor_by_name(gen_outputs['G']),
                                         feeds)
             generated.append(denorm_img_numpy(z_decode, trainer.data_format))

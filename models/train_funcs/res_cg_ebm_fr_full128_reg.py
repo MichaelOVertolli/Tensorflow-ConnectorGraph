@@ -115,11 +115,11 @@ def build_train_ops(log_dir, conngraph, inputs, outputs,
                 tf.summary.scalar('loss/r_l1', r_l1),
                 tf.summary.scalar('loss/r_gms', r_gms),
                 tf.summary.scalar('loss/r_chrom', r_chrom),
-                tf.summary.scalar('loss/d_raw_loss', d_loss)
+                tf.summary.scalar('loss/d_raw_loss', d_loss),
                 tf.summary.scalar('loss/d_l1', d_l1),
                 tf.summary.scalar('loss/d_gms', d_gms),
                 tf.summary.scalar('loss/d_chrom', d_chrom),
-                tf.summary.scalar('loss/d_loss', d_out)                
+                tf.summary.scalar('loss/d_loss', d_out),
                 tf.summary.scalar('misc/measure', measure),
                 tf.summary.scalar('misc/k_t', k_t),
                 tf.summary.scalar('misc/g_lr', g_lr),
@@ -135,7 +135,7 @@ def build_train_ops(log_dir, conngraph, inputs, outputs,
                 saver = tf.train.Saver(sess.graph.get_collection(variables))
                 savers[subgraph] = saver.as_saver_def()
 
-            conngraph.add_subgraph_savers(saver_pairs)
+            conngraph.add_subgraph_savers(savers)
 
         tf.add_to_collection('step', step)
         
@@ -184,7 +184,6 @@ def build_feed_func(gen_tensor, gen_input, rev_input, data_inputs, alpha_tensor,
         
         x = trainer.data_loader
         x = trainer.sess.run(x)
-        x = norm_img(x) #running numpy version so don't have to modify graph
         for inpt in data_inputs:
             feeds.append((inpt, x))
 
@@ -203,8 +202,8 @@ def build_send_func(gen_input, rev_input, data_inputs, gen_outputs, a_output, **
         if not hasattr(self, 'z_fixed'):
             self.z_fixed = np.random.uniform(-1, 1, size=(trainer.batch_size, trainer.z_num))
             self.x_fixed = trainer.get_image_from_loader()
-            save_image(self.x_fixed, os.path.join(trainer.log_dir, 'x_fixed.png'))
-            self.x_fixed = norm_img(self.x_fixed)
+            save_image(denorm_img_numpy(self.x_fixed, trainer.data_format), os.path.join(trainer.log_dir, 'x_fixed.png'))
+
 
         #generate
         z_fixed = self.z_fixed
